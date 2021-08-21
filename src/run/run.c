@@ -1069,55 +1069,6 @@ static int start_transient_service(
         assert(bus);
         assert(retval);
 
-        if (arg_stdio == ARG_STDIO_PTY) {
-
-                if (arg_transport == BUS_TRANSPORT_LOCAL) {
-                        master = posix_openpt(O_RDWR|O_NOCTTY|O_CLOEXEC|O_NONBLOCK);
-                        if (master < 0)
-                                return log_error_errno(errno, "Failed to acquire pseudo tty: %m");
-
-                        r = ptsname_malloc(master, &pty_path);
-                        if (r < 0)
-                                return log_error_errno(r, "Failed to determine tty name: %m");
-
-                        if (unlockpt(master) < 0)
-                                return log_error_errno(errno, "Failed to unlock tty: %m");
-
-                } else if (arg_transport == BUS_TRANSPORT_MACHINE) {
-                        _cleanup_(sd_bus_unrefp) sd_bus *system_bus = NULL;
-                        _cleanup_(sd_bus_message_unrefp) sd_bus_message *pty_reply = NULL;
-                        const char *s;
-
-                        r = sd_bus_default_system(&system_bus);
-                        if (r < 0)
-                                return log_error_errno(r, "Failed to connect to system bus: %m");
-
-                        r = sd_bus_call_method(system_bus,
-                                               "org.freedesktop.machine1",
-                                               "/org/freedesktop/machine1",
-                                               "org.freedesktop.machine1.Manager",
-                                               "OpenMachinePTY",
-                                               &error,
-                                               &pty_reply,
-                                               "s", arg_host);
-                        if (r < 0)
-                                return log_error_errno(r, "Failed to get machine PTY: %s", bus_error_message(&error, r));
-
-                        r = sd_bus_message_read(pty_reply, "hs", &master, &s);
-                        if (r < 0)
-                                return bus_log_parse_error(r);
-
-                        master = fcntl(master, F_DUPFD_CLOEXEC, 3);
-                        if (master < 0)
-                                return log_error_errno(errno, "Failed to duplicate master fd: %m");
-
-                        pty_path = strdup(s);
-                        if (!pty_path)
-                                return log_oom();
-                } else
-                        assert_not_reached();
-        }
-
         /* Optionally, wait for the start job to complete. If we are supposed to read the service's stdin
          * lets skip this however, because we should start that already when the start job is running, and
          * there's little point in waiting for the start job to complete in that case anyway, as we'll wait
@@ -1140,7 +1091,27 @@ static int start_transient_service(
                         return r;
         }
 
-        r = bus_message_new_method_call(bus, &m, bus_systemd_mgr, "StartTransientUnit");
+        // r = bus_message_new_method_call(bus, &m, bus_systemd_mgr, "StartTransientUnit");
+        /* int bus_message_new_method_call( */
+        /*         sd_bus *bus, */
+        /*         sd_bus_message **m, */
+        /*         const BusLocator *locator, */
+        /*         const char *member) { */
+
+        /* assert(locator); */
+
+        /* const BusLocator* const bus_systemd_mgr = &(BusLocator){ */
+        /*         .destination = "org.freedesktop.systemd1", */
+        /*         .path = "/org/freedesktop/systemd1", */
+        /*         .interface = "org.freedesktop.systemd1.Manager" */
+        /* }; */
+
+        r = sd_bus_message_new_method_call(bus,
+                                           &m,
+                                           "org.freedesktop.systemd1",
+                                           "/org/freedesktop/systemd1",
+                                           "org.freedesktop.systemd1.Manager",
+                                           "StartTransientUnit");
         if (r < 0)
                 return bus_log_create_error(r);
 
@@ -1318,6 +1289,8 @@ static int start_transient_service(
         return 0;
 }
 
+/* build/systemd-run --user --pipe --collect --property=CPUAccounting=1 --unit="test-$RANDOM" sleep 5 */
+
 static int run(int argc, char* argv[]) {
         _cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
         _cleanup_free_ char *description = NULL;
@@ -1363,10 +1336,24 @@ static int run(int argc, char* argv[]) {
 
         /* If --wait is used connect via the bus, unconditionally, as ref/unref is not supported via the limited direct
          * connection */
-        if (arg_wait || arg_stdio != ARG_STDIO_NONE || (arg_user && arg_transport != BUS_TRANSPORT_LOCAL))
-                r = bus_connect_transport(arg_transport, arg_host, arg_user, &bus);
-        else
-                r = bus_connect_transport_systemd(arg_transport, arg_host, arg_user, &bus);
+        if (arg_wait || arg_stdio != ARG_STDIO_NONE || (arg_user && arg_transport != BUS_TRANSPORT_LOCAL)) {
+                printf ("%s:%d\n", __FUNCTION__, __LINE__);
+                printf ("%d %d %d\n", arg_wait, arg_stdio != ARG_STDIO_NONE, (arg_user && arg_transport != BUS_TRANSPORT_LOCAL));
+                // r = bus_connect_transport(arg_transport, arg_host, arg_user, &bus);
+
+                r = sd_bus_default_user(&bus);
+                if (r < 0) {
+                        fprintf (stderr, "sd_bus_default_user\n");
+                        exit (1);
+                }
+
+                r = sd_bus_set_exit_on_disconnect(bus, true);
+                if (r < 0) {
+                        fprintf (stderr, "sd_bus_set_exit_on_disconnect\n");
+                        exit (1);
+                }
+        }
+
         if (r < 0)
                 return bus_log_connect_error(r);
 
