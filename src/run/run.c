@@ -939,14 +939,7 @@ typedef struct RunContext {
         bool has_job;
 
         /* The exit data of the unit */
-        uint64_t inactive_exit_usec;
-        uint64_t inactive_enter_usec;
         char *result;
-        uint64_t cpu_usage_nsec;
-        uint64_t ip_ingress_bytes;
-        uint64_t ip_egress_bytes;
-        uint64_t io_read_bytes;
-        uint64_t io_write_bytes;
         uint32_t exit_code;
         uint32_t exit_status;
 } RunContext;
@@ -1000,16 +993,9 @@ static int run_context_update(RunContext *c, const char *path) {
 
         static const struct bus_properties_map map[] = {
                 { "ActiveState",                     "s",    NULL,    offsetof(RunContext, active_state)        },
-                { "InactiveExitTimestampMonotonic",  "t",    NULL,    offsetof(RunContext, inactive_exit_usec)  },
-                { "InactiveEnterTimestampMonotonic", "t",    NULL,    offsetof(RunContext, inactive_enter_usec) },
                 { "Result",                          "s",    NULL,    offsetof(RunContext, result)              },
                 { "ExecMainCode",                    "i",    NULL,    offsetof(RunContext, exit_code)           },
                 { "ExecMainStatus",                  "i",    NULL,    offsetof(RunContext, exit_status)         },
-                { "CPUUsageNSec",                    "t",    NULL,    offsetof(RunContext, cpu_usage_nsec)      },
-                { "IPIngressBytes",                  "t",    NULL,    offsetof(RunContext, ip_ingress_bytes)    },
-                { "IPEgressBytes",                   "t",    NULL,    offsetof(RunContext, ip_egress_bytes)     },
-                { "IOReadBytes",                     "t",    NULL,    offsetof(RunContext, io_read_bytes)       },
-                { "IOWriteBytes",                    "t",    NULL,    offsetof(RunContext, io_write_bytes)      },
                 { "Job",                             "(uo)", map_job, offsetof(RunContext, has_job)             },
                 {}
         };
@@ -1131,15 +1117,7 @@ static int start_transient_service(
 
         printf ("wait path? %d %d\n", arg_wait, arg_stdio != ARG_STDIO_NONE);
         if (arg_wait || arg_stdio != ARG_STDIO_NONE) {
-                _cleanup_(run_context_free) RunContext c = {
-                        .cpu_usage_nsec = NSEC_INFINITY,
-                        .ip_ingress_bytes = UINT64_MAX,
-                        .ip_egress_bytes = UINT64_MAX,
-                        .io_read_bytes = UINT64_MAX,
-                        .io_write_bytes = UINT64_MAX,
-                        .inactive_exit_usec = USEC_INFINITY,
-                        .inactive_enter_usec = USEC_INFINITY,
-                };
+                _cleanup_(run_context_free) RunContext c = {0};
                 _cleanup_free_ char *path = NULL;
 
                 c.bus = sd_bus_ref(bus);
