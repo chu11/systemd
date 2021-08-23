@@ -968,8 +968,10 @@ static void run_context_check_done(RunContext *c) {
 
         assert(c);
 
-        if (c->match)
+        if (c->match) {
+                printf ("check active state = active_state -> %s\n", c->active_state);
                 done = STRPTR_IN_SET(c->active_state, "inactive", "failed") && !c->has_job;
+        }
         else
                 done = true;
 
@@ -1041,20 +1043,6 @@ static int on_properties_changed(sd_bus_message *m, void *userdata, sd_bus_error
         return run_context_update(c, sd_bus_message_get_path(m));
 }
 
-static int pty_forward_handler(PTYForward *f, int rcode, void *userdata) {
-        RunContext *c = userdata;
-
-        assert(f);
-
-        if (rcode < 0) {
-                sd_event_exit(c->event, EXIT_FAILURE);
-                return log_error_errno(rcode, "Error on PTY forwarding logic: %m");
-        }
-
-        run_context_check_done(c);
-        return 0;
-}
-
 static int start_transient_service(
                 sd_bus *bus,
                 int *retval) {
@@ -1062,7 +1050,6 @@ static int start_transient_service(
         _cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL, *reply = NULL;
         _cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
         _cleanup_free_ char *service = NULL, *pty_path = NULL;
-        _cleanup_close_ int master = -1;
         int r;
 
         assert(bus);
@@ -1161,27 +1148,11 @@ static int start_transient_service(
                 if (r < 0)
                         return log_error_errno(r, "Failed to get event loop: %m");
 
-                if (master >= 0) {
-                        assert_se(sigprocmask_many(SIG_BLOCK, NULL, SIGWINCH, SIGTERM, SIGINT, -1) >= 0);
-                        (void) sd_event_add_signal(c.event, NULL, SIGINT, NULL, NULL);
-                        (void) sd_event_add_signal(c.event, NULL, SIGTERM, NULL, NULL);
-
-                        if (!arg_quiet)
-                                log_info("Press ^] three times within 1s to disconnect TTY.");
-
-                        r = pty_forward_new(c.event, master, PTY_FORWARD_IGNORE_INITIAL_VHANGUP, &c.forward);
-                        if (r < 0)
-                                return log_error_errno(r, "Failed to create PTY forwarder: %m");
-
-                        pty_forward_set_handler(c.forward, pty_forward_handler, &c);
-
-                        /* Make sure to process any TTY events before we process bus events */
-                        (void) pty_forward_set_priority(c.forward, SD_EVENT_PRIORITY_IMPORTANT);
-                }
-
                 path = unit_dbus_path_from_name(service);
                 if (!path)
                         return log_oom();
+                printf ("unit_dbus_path_from_name = %s -> %s\n", service, path);
+                // /org/freedesktop/systemd1/unit/unitnamefoo_2eservice
 
                 r = sd_bus_match_signal_async(
                                 bus,
@@ -1206,52 +1177,12 @@ static int start_transient_service(
                 if (r < 0)
                         return log_error_errno(r, "Failed to run event loop: %m");
 
+                // pty stuff i guess
                 if (c.forward) {
                         char last_char = 0;
-
                         r = pty_forward_get_last_char(c.forward, &last_char);
                         if (r >= 0 && !arg_quiet && last_char != '\n')
                                 fputc('\n', stdout);
-                }
-
-                if (arg_wait && !arg_quiet) {
-
-                        /* Explicitly destroy the PTY forwarder, so that the PTY device is usable again, with its
-                         * original settings (i.e. proper line breaks), so that we can show the summary in a pretty
-                         * way. */
-                        c.forward = pty_forward_free(c.forward);
-
-                        if (!isempty(c.result))
-                                log_info("Finished with result: %s", strna(c.result));
-
-                        if (c.exit_code == CLD_EXITED)
-                                log_info("Main processes terminated with: code=%s/status=%i",
-                                         sigchld_code_to_string(c.exit_code), c.exit_status);
-                        else if (c.exit_code > 0)
-                                log_info("Main processes terminated with: code=%s/status=%s",
-                                         sigchld_code_to_string(c.exit_code), signal_to_string(c.exit_status));
-
-                        if (timestamp_is_set(c.inactive_enter_usec) &&
-                            timestamp_is_set(c.inactive_exit_usec) &&
-                            c.inactive_enter_usec > c.inactive_exit_usec)
-                                log_info("Service runtime: %s",
-                                         FORMAT_TIMESPAN(c.inactive_enter_usec - c.inactive_exit_usec, USEC_PER_MSEC));
-
-                        if (c.cpu_usage_nsec != NSEC_INFINITY)
-                                log_info("CPU time consumed: %s",
-                                         FORMAT_TIMESPAN(DIV_ROUND_UP(c.cpu_usage_nsec, NSEC_PER_USEC), USEC_PER_MSEC));
-
-                        if (c.ip_ingress_bytes != UINT64_MAX)
-                                log_info("IP traffic received: %s", FORMAT_BYTES(c.ip_ingress_bytes));
-
-                        if (c.ip_egress_bytes != UINT64_MAX)
-                                log_info("IP traffic sent: %s", FORMAT_BYTES(c.ip_egress_bytes));
-
-                        if (c.io_read_bytes != UINT64_MAX)
-                                log_info("IO bytes read: %s", FORMAT_BYTES(c.io_read_bytes));
-
-                        if (c.io_write_bytes != UINT64_MAX)
-                                log_info("IO bytes written: %s", FORMAT_BYTES(c.io_write_bytes));
                 }
 
                 /* Try to propagate the service's return value. But if the service defines

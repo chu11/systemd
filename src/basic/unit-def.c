@@ -14,7 +14,7 @@ char *unit_dbus_path_from_name(const char *name) {
         e = bus_label_escape(name);
         if (!e)
                 return NULL;
-
+        printf ("name -> e = %s -> %s\n", name, e);
         return strjoin("/org/freedesktop/systemd1/unit/", e);
 }
 
