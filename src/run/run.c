@@ -1061,23 +1061,12 @@ static int start_transient_service(
 
         _cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL, *reply = NULL;
         _cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
-        _cleanup_(bus_wait_for_jobs_freep) BusWaitForJobs *w = NULL;
         _cleanup_free_ char *service = NULL, *pty_path = NULL;
         _cleanup_close_ int master = -1;
         int r;
 
         assert(bus);
         assert(retval);
-
-        /* Optionally, wait for the start job to complete. If we are supposed to read the service's stdin
-         * lets skip this however, because we should start that already when the start job is running, and
-         * there's little point in waiting for the start job to complete in that case anyway, as we'll wait
-         * for EOF anyway, which is going to be much later. */
-        if (!arg_no_block && arg_stdio == ARG_STDIO_NONE) {
-                r = bus_wait_for_jobs_new(bus, &w);
-                if (r < 0)
-                        return log_error_errno(r, "Could not watch jobs: %m");
-        }
 
         if (arg_unit) {
                 r = unit_name_mangle_with_suffix(arg_unit, "as unit",
@@ -1149,27 +1138,6 @@ static int start_transient_service(
         r = sd_bus_call(bus, m, 0, &error, &reply);
         if (r < 0)
                 return log_error_errno(r, "Failed to start transient service unit: %s", bus_error_message(&error, r));
-
-        if (w) {
-                const char *object;
-
-                r = sd_bus_message_read(reply, "o", &object);
-                if (r < 0)
-                        return bus_log_parse_error(r);
-
-                /* r = bus_wait_for_jobs_one(w, object, arg_quiet); */
-                /* if (r < 0) */
-                /*         return r; */
-
-                r = bus_wait_for_jobs_add(w, object);
-                if (r < 0)
-                        return log_oom();
-
-                r = bus_wait_for_jobs(w, arg_quiet, NULL);
-                if (r < 0)
-                        return bus_log_parse_error(r);
-
-        }
 
         if (!arg_quiet)
                 log_info("Running as unit: %s", service);
@@ -1349,8 +1317,8 @@ static int run(int argc, char* argv[]) {
         /* If --wait is used connect via the bus, unconditionally, as ref/unref is not supported via the limited direct
          * connection */
         if (arg_wait || arg_stdio != ARG_STDIO_NONE || (arg_user && arg_transport != BUS_TRANSPORT_LOCAL)) {
-                printf ("%s:%d\n", __FUNCTION__, __LINE__);
-                printf ("%d %d %d\n", arg_wait, arg_stdio != ARG_STDIO_NONE, (arg_user && arg_transport != BUS_TRANSPORT_LOCAL));
+                //printf ("%s:%d\n", __FUNCTION__, __LINE__);
+                //printf ("%d %d %d\n", arg_wait, arg_stdio != ARG_STDIO_NONE, (arg_user && arg_transport != BUS_TRANSPORT_LOCAL));
                 // r = bus_connect_transport(arg_transport, arg_host, arg_user, &bus);
 
                 r = sd_bus_default_user(&bus);
