@@ -32,8 +32,13 @@ int polkit_agent_open(void) {
                 return 0;
 
         /* We check STDIN here, not STDOUT, since this is about input, not output */
-        if (!isatty(STDIN_FILENO))
+        if (!isatty(STDIN_FILENO)) {
+                printf ("is not a tty return\n");
                 return 0;
+        }
+        else {
+                printf ("is a tty (when I run on command line I guess)\n");
+        }
 
         if (!is_main_thread())
                 return -EPERM;

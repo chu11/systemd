@@ -1085,6 +1085,7 @@ static int start_transient_service(
                                                  ".service", &service);
                 if (r < 0)
                         return log_error_errno(r, "Failed to mangle unit name: %m");
+                printf ("unit name is %s\n", service);
         } else {
                 r = make_unit_name(bus, UNIT_SERVICE, &service);
                 if (r < 0)
@@ -1142,6 +1143,7 @@ static int start_transient_service(
         if (r < 0)
                 return bus_log_create_error(r);
 
+        /* achu: tty stuff, ignore for now */
         polkit_agent_open_if_enabled(arg_transport, arg_ask_password);
 
         r = sd_bus_call(bus, m, 0, &error, &reply);
@@ -1155,14 +1157,24 @@ static int start_transient_service(
                 if (r < 0)
                         return bus_log_parse_error(r);
 
-                r = bus_wait_for_jobs_one(w, object, arg_quiet);
+                /* r = bus_wait_for_jobs_one(w, object, arg_quiet); */
+                /* if (r < 0) */
+                /*         return r; */
+
+                r = bus_wait_for_jobs_add(w, object);
                 if (r < 0)
-                        return r;
+                        return log_oom();
+
+                r = bus_wait_for_jobs(w, arg_quiet, NULL);
+                if (r < 0)
+                        return bus_log_parse_error(r);
+
         }
 
         if (!arg_quiet)
                 log_info("Running as unit: %s", service);
 
+        printf ("wait path? %d %d\n", arg_wait, arg_stdio != ARG_STDIO_NONE);
         if (arg_wait || arg_stdio != ARG_STDIO_NONE) {
                 _cleanup_(run_context_free) RunContext c = {
                         .cpu_usage_nsec = NSEC_INFINITY,
