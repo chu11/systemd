@@ -942,6 +942,7 @@ typedef struct RunContext {
         char *result;
         uint32_t exit_code;
         uint32_t exit_status;
+        bool done;
 } RunContext;
 
 static void run_context_free(RunContext *c) {
@@ -971,8 +972,9 @@ static void run_context_check_done(RunContext *c) {
         if (c->forward && done) /* If the service is gone, it's time to drain the output */
                 done = pty_forward_drain(c->forward);
 
-        if (done)
-                sd_event_exit(c->event, EXIT_SUCCESS);
+        /* if (done) */
+        /*         sd_event_exit(c->event, EXIT_SUCCESS); */
+        c->done = done;
 }
 
 static int map_job(sd_bus *bus, const char *member, sd_bus_message *m, sd_bus_error *error, void *userdata) {
@@ -1143,6 +1145,7 @@ static int start_transient_service(
                 if (r < 0)
                         return log_error_errno(r, "Failed to request properties changed signal match: %m");
 
+#if 0
                 r = sd_bus_attach_event(bus, c.event, SD_EVENT_PRIORITY_NORMAL);
                 if (r < 0)
                         return log_error_errno(r, "Failed to attach bus to event loop: %m");
@@ -1154,6 +1157,21 @@ static int start_transient_service(
                 r = sd_event_loop(c.event);
                 if (r < 0)
                         return log_error_errno(r, "Failed to run event loop: %m");
+#endif
+#if 1
+                r = run_context_update(&c, path);
+                if (r < 0)
+                        return r;
+
+                while (!c.done) {
+                        time_t t_start = time(NULL);
+                        printf ("start wait time = %ld\n", t_start);
+                        if (sd_bus_wait (bus, UINT64_MAX) < 0)
+                                fprintf (stderr, "sd_bus_wait ...");
+                        printf ("time passed = %ld\n", time (NULL) - t_start);
+                        while ( sd_bus_process(bus, NULL) ) {  }
+                }
+#endif
 
                 // pty stuff i guess
                 if (c.forward) {
