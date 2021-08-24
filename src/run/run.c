@@ -1176,9 +1176,7 @@ static int start_transient_service(
 #include <poll.h>
 #define USEC_TO_MSEC(usec) ((unsigned int)((usec) / 1000))
                 {
-                        r = run_context_update(&c, path);
-                        if (r < 0)
-                                return r;
+                        while ( sd_bus_process(bus, NULL) ) {  }
 
                         while (!c.done) {
                                 int n;
@@ -1196,8 +1194,8 @@ static int start_transient_service(
                                         timeout = USEC_TO_MSEC (usec);
                                 }
                                 printf ("fd = %d, events = %X, timeout = %d\n", fd.fd, fd.events, timeout);
-                                fd.events = POLLIN;
-                                timeout = -1;
+                                //fd.events = POLLIN;
+                                //timeout = -1;
 
                                 printf ("ME fd = %d, events = %X, timeout = %d\n", fd.fd, fd.events, timeout);
                                 t_start = time (NULL);
