@@ -1158,7 +1158,7 @@ static int start_transient_service(
                 if (r < 0)
                         return log_error_errno(r, "Failed to run event loop: %m");
 #endif
-#if 1
+#if 0
                 r = run_context_update(&c, path);
                 if (r < 0)
                         return r;
@@ -1171,6 +1171,54 @@ static int start_transient_service(
                         printf ("time passed = %ld\n", time (NULL) - t_start);
                         while ( sd_bus_process(bus, NULL) ) {  }
                 }
+#endif
+#if 1
+#include <poll.h>
+#define USEC_TO_MSEC(usec) ((unsigned int)((usec) / 1000))
+                {
+                        r = run_context_update(&c, path);
+                        if (r < 0)
+                                return r;
+
+                        while (!c.done) {
+                                int n;
+                                int timeout;
+                                uint64_t usec = 0;
+                                struct pollfd fd = {0};
+                                time_t t_start;
+
+                                fd.fd = sd_bus_get_fd (bus);
+                                fd.events = sd_bus_get_events (bus);
+
+                                if (sd_bus_get_timeout(bus, &usec) < 0)
+                                        timeout = -1;
+                                else {
+                                        timeout = USEC_TO_MSEC (usec);
+                                }
+                                printf ("fd = %d, events = %X, timeout = %d\n", fd.fd, fd.events, timeout);
+                                fd.events = POLLIN;
+                                timeout = -1;
+
+                                printf ("ME fd = %d, events = %X, timeout = %d\n", fd.fd, fd.events, timeout);
+                                t_start = time (NULL);
+                                printf ("start wait time = %ld\n", t_start);
+                                if ((n = poll (&fd, 1, timeout)) < 0) {
+                                        return log_error_errno (n, "failed poll");
+                                }
+                                printf ("time passed = %ld\n", time (NULL) - t_start);
+                                if (!n) {
+                                        printf ("continuing\n");
+                                        continue;
+                                }
+                                printf ("revents = %X, n = %d\n", fd.revents, n);
+                                while ( sd_bus_process(bus, NULL) ) {  }
+
+                                r = run_context_update(&c, path);
+                                if (r < 0)
+                                        return r;
+                        }
+                }
+
 #endif
 
                 // pty stuff i guess
