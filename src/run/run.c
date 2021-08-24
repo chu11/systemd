@@ -44,7 +44,6 @@ static const char *arg_unit = NULL;
 static const char *arg_description = NULL;
 static const char *arg_slice = NULL;
 static bool arg_slice_inherit = false;
-static bool arg_send_sighup = false;
 static BusTransport arg_transport = BUS_TRANSPORT_LOCAL;
 static const char *arg_host = NULL;
 static bool arg_user = false;
@@ -104,7 +103,6 @@ static int help(void) {
                "     --no-block                   Do not wait until operation finished\n"
                "  -r --remain-after-exit          Leave service around until explicitly stopped\n"
                "     --wait                       Wait until service stopped again\n"
-               "     --send-sighup                Send SIGHUP when terminating\n"
                "     --service-type=TYPE          Service type\n"
                "     --uid=USER                   Run as system user\n"
                "     --gid=GROUP                  Run as system group\n"
@@ -167,7 +165,6 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_DESCRIPTION,
                 ARG_SLICE,
                 ARG_SLICE_INHERIT,
-                ARG_SEND_SIGHUP,
                 ARG_SERVICE_TYPE,
                 ARG_EXEC_USER,
                 ARG_EXEC_GROUP,
@@ -201,7 +198,6 @@ static int parse_argv(int argc, char *argv[]) {
                 { "slice",             required_argument, NULL, ARG_SLICE             },
                 { "slice-inherit",     no_argument,       NULL, ARG_SLICE_INHERIT     },
                 { "remain-after-exit", no_argument,       NULL, 'r'                   },
-                { "send-sighup",       no_argument,       NULL, ARG_SEND_SIGHUP       },
                 { "host",              required_argument, NULL, 'H'                   },
                 { "machine",           required_argument, NULL, 'M'                   },
                 { "service-type",      required_argument, NULL, ARG_SERVICE_TYPE      },
@@ -281,10 +277,6 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case ARG_SLICE_INHERIT:
                         arg_slice_inherit = true;
-                        break;
-
-                case ARG_SEND_SIGHUP:
-                        arg_send_sighup = true;
                         break;
 
                 case 'r':
@@ -687,20 +679,6 @@ static int transient_cgroup_set_properties(sd_bus_message *m) {
         return 0;
 }
 
-static int transient_kill_set_properties(sd_bus_message *m) {
-        int r;
-
-        assert(m);
-
-        if (arg_send_sighup) {
-                r = sd_bus_message_append(m, "(sv)", "SendSIGHUP", "b", arg_send_sighup);
-                if (r < 0)
-                        return bus_log_create_error(r);
-        }
-
-        return 0;
-}
-
 static int transient_service_set_properties(sd_bus_message *m, const char *pty_path) {
         bool send_term = false;
         int r;
@@ -708,10 +686,6 @@ static int transient_service_set_properties(sd_bus_message *m, const char *pty_p
         assert(m);
 
         r = transient_unit_set_properties(m, UNIT_SERVICE, arg_property);
-        if (r < 0)
-                return r;
-
-        r = transient_kill_set_properties(m);
         if (r < 0)
                 return r;
 
