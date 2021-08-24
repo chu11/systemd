@@ -936,8 +936,6 @@ typedef struct RunContext {
 
         /* Current state of the unit */
         char *active_state;
-        bool has_job;
-
         /* The exit data of the unit */
         char *result;
         uint32_t exit_status;
@@ -963,7 +961,7 @@ static void run_context_check_done(RunContext *c) {
 
         if (c->match) {
                 printf ("check active state = active_state -> %s\n", c->active_state);
-                done = STRPTR_IN_SET(c->active_state, "inactive", "failed") && !c->has_job;
+                done = STRPTR_IN_SET(c->active_state, "inactive", "failed");
         }
         else
                 done = true;
@@ -976,27 +974,10 @@ static void run_context_check_done(RunContext *c) {
         c->done = done;
 }
 
-static int map_job(sd_bus *bus, const char *member, sd_bus_message *m, sd_bus_error *error, void *userdata) {
-        bool *b = userdata;
-        const char *job;
-        uint32_t id;
-        int r;
-
-        r = sd_bus_message_read(m, "(uo)", &id, &job);
-        if (r < 0)
-                return r;
-
-        *b = id != 0 || !streq(job, "/");
-        return 0;
-}
-
 static int run_context_update(RunContext *c, const char *path) {
 
         static const struct bus_properties_map map[] = {
-
-                { "Result",                          "s",    NULL,    offsetof(RunContext, result)              },
                 { "ExecMainStatus",                  "i",    NULL,    offsetof(RunContext, exit_status)         },
-                { "Job",                             "(uo)", map_job, offsetof(RunContext, has_job)             },
                 {}
         };
 
@@ -1034,7 +1015,6 @@ static int run_context_update(RunContext *c, const char *path) {
                 r = sd_bus_get_property_string (c->bus,
                                                 "org.freedesktop.systemd1",
                                                 path,
-                                                //"org.freedesktop.DBus.Properties",
                                                 "org.freedesktop.systemd1.Unit",
                                                 "ActiveState",
                                                 &error,
@@ -1046,7 +1026,23 @@ static int run_context_update(RunContext *c, const char *path) {
                         free (c->active_state);
                         c->active_state = str;
                 }
-        }
+
+                str = NULL;
+                r = sd_bus_get_property_string (c->bus,
+                                                "org.freedesktop.systemd1",
+                                                path,
+                                               "org.freedesktop.systemd1.Service",
+                                                "Result",
+                                                &error,
+                                                &str);
+                if (r < 0)
+                        log_error_errno (r, "sd_bus_get_property_string: %s", bus_error_message (&error, r));
+                else {
+                        //printf ("Result str = %s\n", str);
+                        free (c->result);
+                        c->result = str;
+                }
+}
 
         run_context_check_done(c);
         return 0;
