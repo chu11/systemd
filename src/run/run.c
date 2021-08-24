@@ -49,8 +49,6 @@ static bool arg_user = false;
 static const char *arg_service_type = NULL;
 static const char *arg_exec_user = NULL;
 static const char *arg_exec_group = NULL;
-static int arg_nice = 0;
-static bool arg_nice_set = false;
 static char **arg_environment = NULL;
 static char **arg_property = NULL;
 static enum {
@@ -104,7 +102,6 @@ static int help(void) {
                "     --service-type=TYPE          Service type\n"
                "     --uid=USER                   Run as system user\n"
                "     --gid=GROUP                  Run as system group\n"
-               "     --nice=NICE                  Nice level\n"
                "     --working-directory=PATH     Set working directory\n"
                "  -d --same-dir                   Inherit working directory from caller\n"
                "  -E --setenv=NAME[=VALUE]        Set environment variable\n"
@@ -166,7 +163,6 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_SERVICE_TYPE,
                 ARG_EXEC_USER,
                 ARG_EXEC_GROUP,
-                ARG_NICE,
                 ARG_ON_ACTIVE,
                 ARG_ON_BOOT,
                 ARG_ON_STARTUP,
@@ -201,7 +197,6 @@ static int parse_argv(int argc, char *argv[]) {
                 { "wait",              no_argument,       NULL, ARG_WAIT              },
                 { "uid",               required_argument, NULL, ARG_EXEC_USER         },
                 { "gid",               required_argument, NULL, ARG_EXEC_GROUP        },
-                { "nice",              required_argument, NULL, ARG_NICE              },
                 { "setenv",            required_argument, NULL, 'E'                   },
                 { "property",          required_argument, NULL, 'p'                   },
                 { "tty",               no_argument,       NULL, 't'                   }, /* deprecated alias */
@@ -295,14 +290,6 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case ARG_EXEC_GROUP:
                         arg_exec_group = optarg;
-                        break;
-
-                case ARG_NICE:
-                        r = parse_nice(optarg, &arg_nice);
-                        if (r < 0)
-                                return log_error_errno(r, "Failed to parse nice value: %s", optarg);
-
-                        arg_nice_set = true;
                         break;
 
                 case 'E':
@@ -711,12 +698,6 @@ static int transient_service_set_properties(sd_bus_message *m, const char *pty_p
 
         if (arg_exec_group) {
                 r = sd_bus_message_append(m, "(sv)", "Group", "s", arg_exec_group);
-                if (r < 0)
-                        return bus_log_create_error(r);
-        }
-
-        if (arg_nice_set) {
-                r = sd_bus_message_append(m, "(sv)", "Nice", "i", arg_nice);
                 if (r < 0)
                         return bus_log_create_error(r);
         }
