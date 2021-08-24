@@ -41,8 +41,6 @@ static bool arg_no_block = false;
 static bool arg_wait = false;
 static const char *arg_unit = NULL;
 static const char *arg_description = NULL;
-static const char *arg_slice = NULL;
-static bool arg_slice_inherit = false;
 static BusTransport arg_transport = BUS_TRANSPORT_LOCAL;
 static const char *arg_host = NULL;
 static bool arg_user = false;
@@ -94,8 +92,6 @@ static int help(void) {
                "  -u --unit=UNIT                  Run under the specified unit name\n"
                "  -p --property=NAME=VALUE        Set service or scope unit property\n"
                "     --description=TEXT           Description for unit\n"
-               "     --slice=SLICE                Run in the specified slice\n"
-               "     --slice-inherit              Inherit the slice\n"
                "     --no-block                   Do not wait until operation finished\n"
                "  -r --remain-after-exit          Leave service around until explicitly stopped\n"
                "     --wait                       Wait until service stopped again\n"
@@ -158,8 +154,6 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_SYSTEM,
                 ARG_SCOPE,
                 ARG_DESCRIPTION,
-                ARG_SLICE,
-                ARG_SLICE_INHERIT,
                 ARG_SERVICE_TYPE,
                 ARG_EXEC_USER,
                 ARG_EXEC_GROUP,
@@ -188,8 +182,6 @@ static int parse_argv(int argc, char *argv[]) {
                 { "scope",             no_argument,       NULL, ARG_SCOPE             },
                 { "unit",              required_argument, NULL, 'u'                   },
                 { "description",       required_argument, NULL, ARG_DESCRIPTION       },
-                { "slice",             required_argument, NULL, ARG_SLICE             },
-                { "slice-inherit",     no_argument,       NULL, ARG_SLICE_INHERIT     },
                 { "remain-after-exit", no_argument,       NULL, 'r'                   },
                 { "host",              required_argument, NULL, 'H'                   },
                 { "machine",           required_argument, NULL, 'M'                   },
@@ -256,14 +248,6 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case ARG_DESCRIPTION:
                         arg_description = optarg;
-                        break;
-
-                case ARG_SLICE:
-                        arg_slice = optarg;
-                        break;
-
-                case ARG_SLICE_INHERIT:
-                        arg_slice_inherit = true;
                         break;
 
                 case 'r':
@@ -617,47 +601,6 @@ static int transient_unit_set_properties(sd_bus_message *m, UnitType t, char **p
         return 0;
 }
 
-static int transient_cgroup_set_properties(sd_bus_message *m) {
-        _cleanup_free_ char *name = NULL;
-        _cleanup_free_ char *slice = NULL;
-        int r;
-        assert(m);
-
-        if (arg_slice_inherit) {
-                char *end;
-
-                if (arg_user)
-                        r = cg_pid_get_user_slice(0, &name);
-                else
-                        r = cg_pid_get_slice(0, &name);
-                if (r < 0)
-                        return log_error_errno(r, "Failed to get PID slice: %m");
-
-                end = endswith(name, ".slice");
-                if (!end)
-                        return -ENXIO;
-                *end = 0;
-        }
-
-        if (!isempty(arg_slice) && !strextend_with_separator(&name, "-", arg_slice))
-                return log_oom();
-
-        if (!name)
-                return 0;
-
-        r = unit_name_mangle_with_suffix(name, "as slice",
-                                         arg_quiet ? 0 : UNIT_NAME_MANGLE_WARN,
-                                         ".slice", &slice);
-        if (r < 0)
-                return log_error_errno(r, "Failed to mangle name '%s': %m", arg_slice);
-
-        r = sd_bus_message_append(m, "(sv)", "Slice", "s", slice);
-        if (r < 0)
-                return bus_log_create_error(r);
-
-        return 0;
-}
-
 static int transient_service_set_properties(sd_bus_message *m, const char *pty_path) {
         bool send_term = false;
         int r;
@@ -665,10 +608,6 @@ static int transient_service_set_properties(sd_bus_message *m, const char *pty_p
         assert(m);
 
         r = transient_unit_set_properties(m, UNIT_SERVICE, arg_property);
-        if (r < 0)
-                return r;
-
-        r = transient_cgroup_set_properties(m);
         if (r < 0)
                 return r;
 
