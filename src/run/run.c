@@ -940,7 +940,6 @@ typedef struct RunContext {
 
         /* The exit data of the unit */
         char *result;
-        uint32_t exit_code;
         uint32_t exit_status;
         bool done;
 } RunContext;
@@ -994,9 +993,8 @@ static int map_job(sd_bus *bus, const char *member, sd_bus_message *m, sd_bus_er
 static int run_context_update(RunContext *c, const char *path) {
 
         static const struct bus_properties_map map[] = {
-                { "ActiveState",                     "s",    NULL,    offsetof(RunContext, active_state)        },
+
                 { "Result",                          "s",    NULL,    offsetof(RunContext, result)              },
-                { "ExecMainCode",                    "i",    NULL,    offsetof(RunContext, exit_code)           },
                 { "ExecMainStatus",                  "i",    NULL,    offsetof(RunContext, exit_status)         },
                 { "Job",                             "(uo)", map_job, offsetof(RunContext, has_job)             },
                 {}
@@ -1016,6 +1014,38 @@ static int run_context_update(RunContext *c, const char *path) {
         if (r < 0) {
                 sd_event_exit(c->event, EXIT_FAILURE);
                 return log_error_errno(r, "Failed to query unit state: %s", bus_error_message(&error, r));
+        }
+
+        {
+                char *str = NULL;
+
+                /* r = sd_bus_call_method(bus, destination, path, "org.freedesktop.DBus.Properties", "Get", error, &reply, "ss", strempty(interface), member); */
+                /* if (r < 0) */
+                /*         return r; */
+
+                /* r = sd_bus_message_enter_container(reply, 'v', "s"); */
+                /* if (r < 0) */
+                /*         goto fail; */
+
+                /* r = sd_bus_message_read_basic(reply, 's', &s); */
+                /* if (r < 0) */
+                /*         goto fail; */
+
+                r = sd_bus_get_property_string (c->bus,
+                                                "org.freedesktop.systemd1",
+                                                path,
+                                                //"org.freedesktop.DBus.Properties",
+                                                "org.freedesktop.systemd1.Unit",
+                                                "ActiveState",
+                                                &error,
+                                                &str);
+                if (r < 0)
+                        log_error_errno (r, "sd_bus_get_property_string: %s", bus_error_message (&error, r));
+                else {
+                        //printf ("ActiveState str = %s\n", str);
+                        free (c->active_state);
+                        c->active_state = str;
+                }
         }
 
         run_context_check_done(c);
@@ -1176,8 +1206,6 @@ static int start_transient_service(
 #include <poll.h>
 #define USEC_TO_MSEC(usec) ((unsigned int)((usec) / 1000))
                 {
-                        while ( sd_bus_process(bus, NULL) ) {  }
-
                         while (!c.done) {
                                 int n;
                                 int timeout;
@@ -1194,10 +1222,13 @@ static int start_transient_service(
                                         timeout = USEC_TO_MSEC (usec);
                                 }
                                 printf ("fd = %d, events = %X, timeout = %d\n", fd.fd, fd.events, timeout);
-                                //fd.events = POLLIN;
-                                //timeout = -1;
 
-                                printf ("ME fd = %d, events = %X, timeout = %d\n", fd.fd, fd.events, timeout);
+                                /* if no events or no timeout, assume event ready to go right now */
+                                if (!fd.events || !timeout) {
+                                        while ( sd_bus_process(bus, NULL) ) {  }
+                                        continue;
+                                }
+
                                 t_start = time (NULL);
                                 printf ("start wait time = %ld\n", t_start);
                                 if ((n = poll (&fd, 1, timeout)) < 0) {
