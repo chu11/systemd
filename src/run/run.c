@@ -976,73 +976,68 @@ static void run_context_check_done(RunContext *c) {
 
 static int run_context_update(RunContext *c, const char *path) {
 
-        static const struct bus_properties_map map[] = {
-                { "ExecMainStatus",                  "i",    NULL,    offsetof(RunContext, exit_status)         },
-                {}
-        };
-
+        char *str = NULL;
         _cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
         int r;
+        uint32_t tmp;
 
-        r = bus_map_all_properties(c->bus,
-                                   "org.freedesktop.systemd1",
-                                   path,
-                                   map,
-                                   BUS_MAP_STRDUP,
-                                   &error,
-                                   NULL,
-                                   c);
-        if (r < 0) {
-                sd_event_exit(c->event, EXIT_FAILURE);
-                return log_error_errno(r, "Failed to query unit state: %s", bus_error_message(&error, r));
+        /* r = sd_bus_call_method(bus, destination, path, "org.freedesktop.DBus.Properties", "Get", error, &reply, "ss", strempty(interface), member); */
+        /* if (r < 0) */
+        /*         return r; */
+
+        /* r = sd_bus_message_enter_container(reply, 'v', "s"); */
+        /* if (r < 0) */
+        /*         goto fail; */
+
+        /* r = sd_bus_message_read_basic(reply, 's', &s); */
+        /* if (r < 0) */
+        /*         goto fail; */
+
+        r = sd_bus_get_property_string (c->bus,
+                                        "org.freedesktop.systemd1",
+                                        path,
+                                        "org.freedesktop.systemd1.Unit",
+                                        "ActiveState",
+                                        &error,
+                                        &str);
+        if (r < 0)
+                log_error_errno (r, "sd_bus_get_property_string: %s", bus_error_message (&error, r));
+        else {
+                //printf ("ActiveState str = %s\n", str);
+                free (c->active_state);
+                c->active_state = str;
         }
 
-        {
-                char *str = NULL;
+        r = sd_bus_get_property_trivial (c->bus,
+                                         "org.freedesktop.systemd1",
+                                         path,
+                                         "org.freedesktop.systemd1.Service",
+                                         "ExecMainStatus",
+                                         &error,
+                                         'i',
+                                         &tmp);
+        if (r < 0)
+                log_error_errno (r, "sd_bus_get_property_trivial: %s", bus_error_message (&error, r));
+        else {
+                printf ("exit status = %d\n", tmp);
+                c->exit_status = tmp;
+        }
 
-                /* r = sd_bus_call_method(bus, destination, path, "org.freedesktop.DBus.Properties", "Get", error, &reply, "ss", strempty(interface), member); */
-                /* if (r < 0) */
-                /*         return r; */
-
-                /* r = sd_bus_message_enter_container(reply, 'v', "s"); */
-                /* if (r < 0) */
-                /*         goto fail; */
-
-                /* r = sd_bus_message_read_basic(reply, 's', &s); */
-                /* if (r < 0) */
-                /*         goto fail; */
-
-                r = sd_bus_get_property_string (c->bus,
-                                                "org.freedesktop.systemd1",
-                                                path,
-                                                "org.freedesktop.systemd1.Unit",
-                                                "ActiveState",
-                                                &error,
-                                                &str);
-                if (r < 0)
-                        log_error_errno (r, "sd_bus_get_property_string: %s", bus_error_message (&error, r));
-                else {
-                        //printf ("ActiveState str = %s\n", str);
-                        free (c->active_state);
-                        c->active_state = str;
-                }
-
-                str = NULL;
-                r = sd_bus_get_property_string (c->bus,
-                                                "org.freedesktop.systemd1",
-                                                path,
-                                               "org.freedesktop.systemd1.Service",
-                                                "Result",
-                                                &error,
-                                                &str);
-                if (r < 0)
-                        log_error_errno (r, "sd_bus_get_property_string: %s", bus_error_message (&error, r));
-                else {
-                        //printf ("Result str = %s\n", str);
-                        free (c->result);
-                        c->result = str;
-                }
-}
+        str = NULL;
+        r = sd_bus_get_property_string (c->bus,
+                                        "org.freedesktop.systemd1",
+                                        path,
+                                        "org.freedesktop.systemd1.Service",
+                                        "Result",
+                                        &error,
+                                        &str);
+        if (r < 0)
+                log_error_errno (r, "sd_bus_get_property_string: %s", bus_error_message (&error, r));
+        else {
+                //printf ("Result str = %s\n", str);
+                free (c->result);
+                c->result = str;
+        }
 
         run_context_check_done(c);
         return 0;
