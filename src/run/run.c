@@ -881,53 +881,6 @@ static int transient_service_set_properties(sd_bus_message *m, const char *pty_p
         return 0;
 }
 
-static int make_unit_name(sd_bus *bus, UnitType t, char **ret) {
-        const char *unique, *id;
-        char *p;
-        int r;
-
-        assert(bus);
-        assert(t >= 0);
-        assert(t < _UNIT_TYPE_MAX);
-
-        r = sd_bus_get_unique_name(bus, &unique);
-        if (r < 0) {
-                sd_id128_t rnd;
-
-                /* We couldn't get the unique name, which is a pretty
-                 * common case if we are connected to systemd
-                 * directly. In that case, just pick a random uuid as
-                 * name */
-
-                r = sd_id128_randomize(&rnd);
-                if (r < 0)
-                        return log_error_errno(r, "Failed to generate random run unit name: %m");
-
-                if (asprintf(ret, "run-r" SD_ID128_FORMAT_STR ".%s", SD_ID128_FORMAT_VAL(rnd), unit_type_to_string(t)) < 0)
-                        return log_oom();
-
-                return 0;
-        }
-
-        /* We managed to get the unique name, then let's use that to name our transient units. */
-
-        id = startswith(unique, ":1."); /* let' strip the usual prefix */
-        if (!id)
-                id = startswith(unique, ":"); /* the spec only requires things to start with a colon, hence
-                                               * let's add a generic fallback for that. */
-        if (!id)
-                return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
-                                       "Unique name %s has unexpected format.",
-                                       unique);
-
-        p = strjoin("run-u", id, ".", unit_type_to_string(t));
-        if (!p)
-                return log_oom();
-
-        *ret = p;
-        return 0;
-}
-
 typedef struct RunContext {
         sd_bus *bus;
         sd_event *event;
@@ -1071,12 +1024,7 @@ static int start_transient_service(
                 if (r < 0)
                         return log_error_errno(r, "Failed to mangle unit name: %m");
                 printf ("unit name is %s\n", service);
-        } else {
-                r = make_unit_name(bus, UNIT_SERVICE, &service);
-                if (r < 0)
-                        return r;
         }
-
         // r = bus_message_new_method_call(bus, &m, bus_systemd_mgr, "StartTransientUnit");
         /* int bus_message_new_method_call( */
         /*         sd_bus *bus, */
