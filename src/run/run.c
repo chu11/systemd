@@ -35,7 +35,6 @@
 #include "unit-name.h"
 #include "user-util.h"
 
-static bool arg_ask_password = true;
 static bool arg_scope = false;
 static bool arg_remain_after_exit = false;
 static bool arg_no_block = false;
@@ -90,7 +89,6 @@ static int help(void) {
                "\n%sRun the specified command in a transient scope or service.%s\n\n"
                "  -h --help                       Show this help\n"
                "     --version                    Show package version\n"
-               "     --no-ask-password            Do not prompt for password\n"
                "     --user                       Run as user unit\n"
                "  -H --host=[USER@]HOST           Operate on remote host\n"
                "  -M --machine=CONTAINER          Operate on local container\n"
@@ -181,7 +179,6 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_PATH_PROPERTY,
                 ARG_SOCKET_PROPERTY,
                 ARG_NO_BLOCK,
-                ARG_NO_ASK_PASSWORD,
                 ARG_WAIT,
                 ARG_WORKING_DIRECTORY,
                 ARG_SHELL,
@@ -223,7 +220,6 @@ static int parse_argv(int argc, char *argv[]) {
                 { "path-property",     required_argument, NULL, ARG_PATH_PROPERTY     },
                 { "socket-property",   required_argument, NULL, ARG_SOCKET_PROPERTY   },
                 { "no-block",          no_argument,       NULL, ARG_NO_BLOCK          },
-                { "no-ask-password",   no_argument,       NULL, ARG_NO_ASK_PASSWORD   },
                 { "collect",           no_argument,       NULL, 'G'                   },
                 { "working-directory", required_argument, NULL, ARG_WORKING_DIRECTORY },
                 { "same-dir",          no_argument,       NULL, 'd'                   },
@@ -246,10 +242,6 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case ARG_VERSION:
                         return version();
-
-                case ARG_NO_ASK_PASSWORD:
-                        arg_ask_password = false;
-                        break;
 
                 case ARG_USER:
                         arg_user = true;
@@ -1023,7 +1015,7 @@ static int start_transient_service(
         if (r < 0)
                 return bus_log_create_error(r);
 
-        r = sd_bus_message_set_allow_interactive_authorization(m, arg_ask_password);
+        r = sd_bus_message_set_allow_interactive_authorization(m, true);
         if (r < 0)
                 return bus_log_create_error(r);
 
@@ -1051,7 +1043,7 @@ static int start_transient_service(
                 return bus_log_create_error(r);
 
         /* achu: tty stuff, ignore for now */
-        polkit_agent_open_if_enabled(arg_transport, arg_ask_password);
+        polkit_agent_open_if_enabled(arg_transport, true);
 
         r = sd_bus_call(bus, m, 0, &error, &reply);
         if (r < 0)
