@@ -1052,8 +1052,45 @@ static int run(int argc, char* argv[]) {
                         exit (1);
                 }
         }
-        else
-                r = bus_connect_transport_systemd(arg_transport, arg_host, arg_user, &bus);
+        else {
+                // r = bus_connect_transport_systemd(arg_transport, arg_host, arg_user, &bus);
+
+                // more complex w/ XDG_RUNTIME_DIR, ignore this for now
+
+#if 0
+                const char *e;
+                char *ee;
+                e = secure_getenv("XDG_RUNTIME_DIR");
+                if (!e)
+                        return sd_bus_default_user(&bus);
+
+                ee = bus_address_escape(e);
+                if (!ee)
+                        return -ENOMEM;
+
+                r = sd_bus_new(&bus);
+                if (r < 0)
+                        return r;
+
+                bus->address = strjoin("unix:path=", ee, "/systemd/private");
+                if (!bus->address)
+                        return -ENOMEM;
+
+                r = sd_bus_start(bus);
+                if (r < 0)
+                        return sd_bus_default_user(_bus);
+
+                r = bus_check_peercred(bus);
+                if (r < 0)
+                        return r;
+
+                free (ee);
+#else
+                r = sd_bus_default_user (&bus);
+                if (r < 0)
+                        return r;
+#endif
+        }
 
         if (r < 0)
                 return bus_log_connect_error(r);
