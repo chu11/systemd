@@ -58,7 +58,6 @@ static enum {
 static bool arg_quiet = false;
 static bool arg_aggressive_gc = false;
 static char *arg_working_directory = NULL;
-static bool arg_shell = false;
 static char **arg_cmdline = NULL;
 
 STATIC_DESTRUCTOR_REGISTER(arg_environment, strv_freep);
@@ -99,7 +98,6 @@ static int help(void) {
                "  -P --pipe                       Pass STDIN/STDOUT/STDERR directly to service\n"
                "  -q --quiet                      Suppress information messages during runtime\n"
                "  -G --collect                    Unload unit after it ran, even when failed\n"
-               "  -S --shell                      Invoke a $SHELL interactively\n\n"
                "\nSee the %s for details.\n",
                program_invocation_short_name,
                ansi_highlight(),
@@ -123,7 +121,6 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_NO_BLOCK,
                 ARG_WAIT,
                 ARG_WORKING_DIRECTORY,
-                ARG_SHELL,
         };
 
         static const struct option options[] = {
@@ -280,42 +277,12 @@ static int parse_argv(int argc, char *argv[]) {
                         arg_aggressive_gc = true;
                         break;
 
-                case 'S':
-                        arg_shell = true;
-                        break;
-
                 case '?':
                         return -EINVAL;
 
                 default:
                         assert_not_reached();
                 }
-
-        if (arg_shell) {
-                /* If --shell is imply --pty --pipe --same-dir --service-type=exec --wait --collect, unless otherwise
-                 * specified. */
-
-                if (!arg_scope) {
-                        if (arg_stdio == ARG_STDIO_NONE)
-                                arg_stdio = ARG_STDIO_AUTO;
-
-                        if (!arg_working_directory) {
-                                r = safe_getcwd(&arg_working_directory);
-                                if (r < 0)
-                                        return log_error_errno(r, "Failed to get current working directory: %m");
-                        }
-
-                        if (!arg_service_type) {
-                                arg_service_type = strdup("exec");
-                                if (!arg_service_type)
-                                        return log_oom();
-                        }
-
-                        arg_wait = true;
-                }
-
-                arg_aggressive_gc = true;
-        }
 
         if (arg_stdio == ARG_STDIO_AUTO)
                 /* If we both --pty and --pipe are specified we'll automatically pick --pty if we are connected fully
@@ -328,24 +295,7 @@ static int parse_argv(int argc, char *argv[]) {
         if (argc > optind) {
                 char **l;
 
-                if (arg_shell)
-                        return log_error_errno(SYNTHETIC_ERRNO(EINVAL), "If --shell is used, no command line is expected.");
-
                 l = strv_copy(argv + optind);
-                if (!l)
-                        return log_oom();
-
-                strv_free_and_replace(arg_cmdline, l);
-
-        } else if (arg_shell) {
-                _cleanup_free_ char *s = NULL;
-                char **l;
-
-                r = get_shell(&s);
-                if (r < 0)
-                        return log_error_errno(r, "Failed to determine shell: %m");
-
-                l = strv_new(s);
                 if (!l)
                         return log_oom();
 
