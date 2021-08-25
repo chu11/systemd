@@ -1147,4 +1147,21 @@ static int run(int argc, char* argv[]) {
         return retval;
 }
 
+#if 0
+int main(int argc, char *argv[]) {                                      \
+                int r;                                                  \
+                save_argc_argv(argc, argv);                             \
+                intro;                                                  \
+                r = impl;                                               \
+                if (r < 0)                                              \
+                        (void) sd_notifyf(0, "ERRNO=%i", -r);           \
+                ask_password_agent_close();                             \
+                polkit_agent_close();                                   \
+                pager_close();                                          \
+                mac_selinux_finish();                                   \
+                static_destruct();                                      \
+                return ret;                                             \
+        }
+#endif
+
 DEFINE_MAIN_FUNCTION_WITH_POSITIVE_FAILURE(run);
