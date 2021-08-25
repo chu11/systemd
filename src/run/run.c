@@ -1006,6 +1006,7 @@ static int wait_transient_service(
 
 static int run(int argc, char* argv[]) {
         _cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus = NULL;
+        _cleanup_(sd_bus_flush_close_unrefp) sd_bus *bus_wait = NULL;
         _cleanup_free_ char *description = NULL;
         int r, retval = EXIT_SUCCESS;
 
@@ -1114,7 +1115,26 @@ static int run(int argc, char* argv[]) {
         if (r < 0)
                 return r;
 
-        r = wait_transient_service(bus, &retval);
+        if (arg_wait || arg_stdio != ARG_STDIO_NONE) {
+                r = sd_bus_default_user(&bus_wait);
+                if (r < 0) {
+                        fprintf (stderr, "sd_bus_default_user\n");
+                        exit (1);
+                }
+
+                r = sd_bus_set_exit_on_disconnect(bus_wait, true);
+                if (r < 0) {
+                        fprintf (stderr, "sd_bus_set_exit_on_disconnect\n");
+                        exit (1);
+                }
+        }
+        else {
+                r = sd_bus_default_user (&bus_wait);
+                if (r < 0)
+                        return r;
+        }
+
+        r = wait_transient_service(bus_wait, &retval);
         if (r < 0)
                 return r;
 
