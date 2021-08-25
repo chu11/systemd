@@ -42,7 +42,6 @@ static bool arg_wait = false;
 static const char *arg_unit = NULL;
 static const char *arg_description = NULL;
 static BusTransport arg_transport = BUS_TRANSPORT_LOCAL;
-static const char *arg_host = NULL;
 static bool arg_user = false;
 static const char *arg_service_type = NULL;
 static const char *arg_exec_user = NULL;
@@ -132,8 +131,6 @@ static int parse_argv(int argc, char *argv[]) {
                 { "unit",              required_argument, NULL, 'u'                   },
                 { "description",       required_argument, NULL, ARG_DESCRIPTION       },
                 { "remain-after-exit", no_argument,       NULL, 'r'                   },
-                { "host",              required_argument, NULL, 'H'                   },
-                { "machine",           required_argument, NULL, 'M'                   },
                 { "service-type",      required_argument, NULL, ARG_SERVICE_TYPE      },
                 { "wait",              no_argument,       NULL, ARG_WAIT              },
                 { "uid",               required_argument, NULL, ARG_EXEC_USER         },
@@ -189,16 +186,6 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case 'r':
                         arg_remain_after_exit = true;
-                        break;
-
-                case 'H':
-                        arg_transport = BUS_TRANSPORT_REMOTE;
-                        arg_host = optarg;
-                        break;
-
-                case 'M':
-                        arg_transport = BUS_TRANSPORT_MACHINE;
-                        arg_host = optarg;
                         break;
 
                 case ARG_SERVICE_TYPE:
@@ -304,14 +291,6 @@ static int parse_argv(int argc, char *argv[]) {
         } else if (!arg_unit)
                 return log_error_errno(SYNTHETIC_ERRNO(EINVAL), "Command line to execute required.");
 
-        if (arg_user && arg_transport == BUS_TRANSPORT_REMOTE)
-                return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
-                                       "Execution in user context is not supported on remote systems.");
-
-        if (arg_scope && arg_transport == BUS_TRANSPORT_REMOTE)
-                return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
-                                       "Scope execution is not supported on remote systems.");
-
         if (arg_scope && (arg_remain_after_exit || arg_service_type))
                 return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
                                        "--remain-after-exit and --service-type= are not supported in --scope mode.");
@@ -319,10 +298,6 @@ static int parse_argv(int argc, char *argv[]) {
         if (arg_stdio != ARG_STDIO_NONE && arg_scope)
                 return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
                                        "--pty/--pipe is not compatible in timer or --scope mode.");
-
-        if (arg_stdio != ARG_STDIO_NONE && arg_transport == BUS_TRANSPORT_REMOTE)
-                return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
-                                       "--pty/--pipe is only supported when connecting to the local system or containers.");
 
         if (arg_stdio != ARG_STDIO_NONE && arg_no_block)
                 return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
@@ -895,7 +870,7 @@ static int run(int argc, char* argv[]) {
 
         /* If --wait is used connect via the bus, unconditionally, as ref/unref is not supported via the limited direct
          * connection */
-        if (arg_wait || arg_stdio != ARG_STDIO_NONE || (arg_user && arg_transport != BUS_TRANSPORT_LOCAL)) {
+        if (arg_wait || arg_stdio != ARG_STDIO_NONE) {
                 //printf ("%s:%d\n", __FUNCTION__, __LINE__);
                 //printf ("%d %d %d\n", arg_wait, arg_stdio != ARG_STDIO_NONE, (arg_user && arg_transport != BUS_TRANSPORT_LOCAL));
                 // r = bus_connect_transport(arg_transport, arg_host, arg_user, &bus);
