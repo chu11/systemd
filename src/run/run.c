@@ -578,7 +578,6 @@ static int start_transient_service(
 
 typedef struct RunContext {
         sd_bus *bus;
-        sd_event *event;
         PTYForward *forward;
         sd_bus_slot *match;
 
@@ -596,7 +595,6 @@ static void run_context_free(RunContext *c) {
         c->forward = pty_forward_free(c->forward);
         c->match = sd_bus_slot_unref(c->match);
         c->bus = sd_bus_unref(c->bus);
-        c->event = sd_event_unref(c->event);
 
         free(c->active_state);
         free(c->result);
@@ -881,10 +879,6 @@ static int wait_transient_service(
 
                 c.bus = sd_bus_ref(bus);
 
-                r = sd_event_default(&c.event);
-                if (r < 0)
-                        return log_error_errno(r, "Failed to get event loop: %m");
-
                 path = unit_dbus_path_from_name(service);
                 if (!path)
                         return log_oom();
@@ -906,19 +900,6 @@ static int wait_transient_service(
                 if (r < 0)
                         return log_error_errno(r, "Failed to request properties changed signal match: %m");
 
-#if 0
-                r = sd_bus_attach_event(bus, c.event, SD_EVENT_PRIORITY_NORMAL);
-                if (r < 0)
-                        return log_error_errno(r, "Failed to attach bus to event loop: %m");
-
-                r = run_context_update(&c, path);
-                if (r < 0)
-                        return r;
-
-                r = sd_event_loop(c.event);
-                if (r < 0)
-                        return log_error_errno(r, "Failed to run event loop: %m");
-#endif
 #if 0
                 r = run_context_update(&c, path);
                 if (r < 0)
