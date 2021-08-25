@@ -540,11 +540,169 @@ static void run_context_check_done(RunContext *c) {
 
 static int run_context_update(RunContext *c, const char *path) {
 
-        char *str = NULL;
+        _cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL;
         _cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
         int r;
+#if 0
+        char *str = NULL;
         uint32_t tmp;
+#endif
 
+#if 1
+        /* r = bus_map_all_properties(c->bus, */
+        /*                            "org.freedesktop.systemd1", */
+        /*                            path, */
+        /*                            map, */
+        /*                            BUS_MAP_STRDUP, */
+        /*                            &error, */
+        /*                            NULL, */
+        /*                            c); */
+
+        r = sd_bus_call_method(
+                        c->bus,
+                        "org.freedesktop.systemd1",
+                        path,
+                        "org.freedesktop.DBus.Properties",
+                        "GetAll",
+                        &error,
+                        &m,
+                        "s", "");
+        if (r < 0)
+            return r;
+
+        r = sd_bus_message_enter_container(m, SD_BUS_TYPE_ARRAY, "{sv}");
+        if (r < 0)
+                return r;
+
+        while ((r = sd_bus_message_enter_container(m, SD_BUS_TYPE_DICT_ENTRY, "sv")) > 0) {
+                const char *member;
+                const char *contents;
+
+                r = sd_bus_message_read_basic(m, SD_BUS_TYPE_STRING, &member);
+                if (r < 0)
+                        return r;
+
+                //printf ("member = %s\n", member);
+                if (!strcmp (member, "ActiveState")) {
+                        const char *s;
+                        char type;
+
+                        r = sd_bus_message_peek_type(m, NULL, &contents);
+                        if (r < 0)
+                                return r;
+
+                        r = sd_bus_message_enter_container(m, SD_BUS_TYPE_VARIANT, contents);
+                        if (r < 0)
+                                return r;
+
+                        /* must call again now that we've called enter container */
+                        r = sd_bus_message_peek_type(m, &type, NULL);
+                        if (r < 0)
+                                return r;
+
+                        if (type != SD_BUS_TYPE_STRING)
+                                return -1;
+
+                        r = sd_bus_message_read_basic(m, type, &s);
+                        if (r < 0)
+                                return r;
+
+                        r = sd_bus_message_exit_container(m);
+                        if (r < 0)
+                                return r;
+
+                        free (c->active_state);
+                        if (!(c->active_state = strdup (s))) {
+                                printf ("STRDUP FAILED\n");
+                                return -1;
+                        }
+                        // printf ("new active state = %s\n", c->active_state);
+                }
+                else if (!strcmp (member, "Result")) {
+                        const char *s;
+                        char type;
+
+                        r = sd_bus_message_peek_type(m, NULL, &contents);
+                        if (r < 0)
+                                return r;
+
+                        r = sd_bus_message_enter_container(m, SD_BUS_TYPE_VARIANT, contents);
+                        if (r < 0)
+                                return r;
+
+                        /* must call again now that we've called enter container */
+                        r = sd_bus_message_peek_type(m, &type, NULL);
+                        if (r < 0)
+                                return r;
+
+                        if (type != SD_BUS_TYPE_STRING)
+                                return -1;
+
+                        r = sd_bus_message_read_basic(m, type, &s);
+                        if (r < 0)
+                                return r;
+
+                        r = sd_bus_message_exit_container(m);
+                        if (r < 0)
+                                return r;
+
+                        free (c->result);
+                        if (!(c->result = strdup (s))) {
+                                printf ("STRDUP FAILED\n");
+                                return -1;
+                        }
+                        //printf ("new result = %s\n", c->result);
+                }
+                else if (!strcmp (member, "ExecMainStatus")) {
+                        uint32_t tmp;
+                        char type;
+
+                        r = sd_bus_message_peek_type(m, NULL, &contents);
+                        if (r < 0)
+                                return r;
+
+                        r = sd_bus_message_enter_container(m, SD_BUS_TYPE_VARIANT, contents);
+                        if (r < 0)
+                                return r;
+
+                        /* must call again now that we've called enter container */
+                        r = sd_bus_message_peek_type(m, &type, NULL);
+                        if (r < 0)
+                                return r;
+
+                        if (type != SD_BUS_TYPE_INT32)
+                                return -1;
+
+                        r = sd_bus_message_read_basic(m, type, &tmp);
+                        if (r < 0)
+                                return r;
+
+                        r = sd_bus_message_exit_container(m);
+                        if (r < 0)
+                                return r;
+
+                        c->exit_status = tmp;
+                        //printf ("exit status = %d\n", tmp);
+                }
+                else {
+                        r = sd_bus_message_skip(m, "v");
+                        if (r < 0)
+                                return r;
+                }
+
+                r = sd_bus_message_exit_container(m);
+                if (r < 0)
+                        return r;
+        }
+        if (r < 0)
+                return r;
+
+        r = sd_bus_message_exit_container(m);
+        if (r < 0)
+                return r;
+#endif
+
+#if 0
         /* r = sd_bus_call_method(bus, destination, path, "org.freedesktop.DBus.Properties", "Get", error, &reply, "ss", strempty(interface), member); */
         /* if (r < 0) */
         /*         return r; */
@@ -602,6 +760,7 @@ static int run_context_update(RunContext *c, const char *path) {
                 free (c->result);
                 c->result = str;
         }
+#endif
 
         run_context_check_done(c);
         return 0;
@@ -713,6 +872,9 @@ static int start_transient_service(
                         return log_oom();
                 printf ("unit_dbus_path_from_name = %s -> %s\n", service, path);
                 // /org/freedesktop/systemd1/unit/unitnamefoo_2eservice
+
+                // HOW DO I LIMIT THE MATCH?
+                // perhaps need to GetAll just like systemd did already and filter as needed.
 
                 r = sd_bus_match_signal_async(
                                 bus,
