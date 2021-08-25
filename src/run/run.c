@@ -55,7 +55,6 @@ static enum {
         ARG_STDIO_DIRECT,    /* Directly pass our stdin/stdout/stderr to the activated service, useful for usage in shell pipelines, requested by --pipe */
         ARG_STDIO_AUTO,      /* If --pipe and --pty are used together we use --pty when invoked on a TTY, and --pipe otherwise */
 } arg_stdio = ARG_STDIO_NONE;
-static char **arg_path_property = NULL;
 static char **arg_socket_property = NULL;
 static char **arg_timer_property = NULL;
 static bool arg_with_timer = false;
@@ -67,7 +66,6 @@ static char **arg_cmdline = NULL;
 
 STATIC_DESTRUCTOR_REGISTER(arg_environment, strv_freep);
 STATIC_DESTRUCTOR_REGISTER(arg_property, strv_freep);
-STATIC_DESTRUCTOR_REGISTER(arg_path_property, strv_freep);
 STATIC_DESTRUCTOR_REGISTER(arg_socket_property, strv_freep);
 STATIC_DESTRUCTOR_REGISTER(arg_timer_property, strv_freep);
 STATIC_DESTRUCTOR_REGISTER(arg_working_directory, freep);
@@ -107,8 +105,6 @@ static int help(void) {
                "  -q --quiet                      Suppress information messages during runtime\n"
                "  -G --collect                    Unload unit after it ran, even when failed\n"
                "  -S --shell                      Invoke a $SHELL interactively\n\n"
-               "Path options:\n"
-               "     --path-property=NAME=VALUE   Set path unit property\n\n"
                "Socket options:\n"
                "     --socket-property=NAME=VALUE Set socket unit property\n\n"
                "Timer options:\n"
@@ -166,7 +162,6 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_ON_TIMEZONE_CHANGE,
                 ARG_ON_CLOCK_CHANGE,
                 ARG_TIMER_PROPERTY,
-                ARG_PATH_PROPERTY,
                 ARG_SOCKET_PROPERTY,
                 ARG_NO_BLOCK,
                 ARG_WAIT,
@@ -204,7 +199,6 @@ static int parse_argv(int argc, char *argv[]) {
                 { "on-timezone-change",no_argument,       NULL, ARG_ON_TIMEZONE_CHANGE},
                 { "on-clock-change",   no_argument,       NULL, ARG_ON_CLOCK_CHANGE   },
                 { "timer-property",    required_argument, NULL, ARG_TIMER_PROPERTY    },
-                { "path-property",     required_argument, NULL, ARG_PATH_PROPERTY     },
                 { "socket-property",   required_argument, NULL, ARG_SOCKET_PROPERTY   },
                 { "no-block",          no_argument,       NULL, ARG_NO_BLOCK          },
                 { "collect",           no_argument,       NULL, 'G'                   },
@@ -404,13 +398,6 @@ static int parse_argv(int argc, char *argv[]) {
                                                "OnCalendar=");
                         break;
 
-                case ARG_PATH_PROPERTY:
-
-                        if (strv_extend(&arg_path_property, optarg) < 0)
-                                return log_oom();
-
-                        break;
-
                 case ARG_SOCKET_PROPERTY:
 
                         if (strv_extend(&arg_socket_property, optarg) < 0)
@@ -462,10 +449,10 @@ static int parse_argv(int argc, char *argv[]) {
                         assert_not_reached();
                 }
 
-        with_trigger = !!arg_path_property || !!arg_socket_property || arg_with_timer;
+        with_trigger = !!arg_socket_property || arg_with_timer;
 
         /* currently, only single trigger (path, socket, timer) unit can be created simultaneously */
-        if ((int) !!arg_path_property + (int) !!arg_socket_property + (int) arg_with_timer > 1)
+        if ((int) !!arg_socket_property + (int) arg_with_timer > 1)
                 return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
                                        "Only single trigger (path, socket, timer) unit can be created.");
 
@@ -963,7 +950,7 @@ static int start_transient_service(
                 return bus_log_create_error(r);
 
         /* achu: tty stuff, ignore for now */
-        polkit_agent_open_if_enabled(arg_transport, true);
+        // polkit_agent_open_if_enabled(arg_transport, true);
 
         r = sd_bus_call(bus, m, 0, &error, &reply);
         if (r < 0)
