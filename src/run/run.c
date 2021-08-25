@@ -851,6 +851,7 @@ static int run(int argc, char* argv[]) {
                 if (r < 0)
                         return log_error_errno(r, "Failed to find executable %s: %m", arg_cmdline[0]);
 
+                printf ("command = %s\n", command);
                 free_and_replace(arg_cmdline[0], command);
         }
 
