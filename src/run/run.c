@@ -1096,28 +1096,30 @@ static int run(int argc, char* argv[]) {
         if (r < 0)
                 return r;
 
-        if (arg_wait || arg_stdio != ARG_STDIO_NONE) {
-                r = sd_bus_default_user(&bus_wait);
-                if (r < 0) {
-                        fprintf (stderr, "sd_bus_default_user\n");
-                        exit (1);
+        if (arg_wait) {
+                if (arg_stdio != ARG_STDIO_NONE) {
+                        r = sd_bus_default_user(&bus_wait);
+                        if (r < 0) {
+                                fprintf (stderr, "sd_bus_default_user\n");
+                                exit (1);
+                        }
+
+                        r = sd_bus_set_exit_on_disconnect(bus_wait, true);
+                        if (r < 0) {
+                                fprintf (stderr, "sd_bus_set_exit_on_disconnect\n");
+                                exit (1);
+                        }
+                }
+                else {
+                        r = sd_bus_default_user (&bus_wait);
+                        if (r < 0)
+                                return r;
                 }
 
-                r = sd_bus_set_exit_on_disconnect(bus_wait, true);
-                if (r < 0) {
-                        fprintf (stderr, "sd_bus_set_exit_on_disconnect\n");
-                        exit (1);
-                }
-        }
-        else {
-                r = sd_bus_default_user (&bus_wait);
+                r = wait_transient_service(bus_wait, &retval);
                 if (r < 0)
                         return r;
         }
-
-        r = wait_transient_service(bus_wait, &retval);
-        if (r < 0)
-                return r;
 
         return retval;
 }
