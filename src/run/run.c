@@ -492,6 +492,90 @@ static int transient_service_set_properties(sd_bus_message *m, const char *pty_p
         return 0;
 }
 
+static int start_transient_service(
+                sd_bus *bus) {
+
+        _cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL, *reply = NULL;
+        _cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
+        _cleanup_free_ char *service = NULL, *pty_path = NULL;
+        int r;
+
+        assert(bus);
+
+        if (arg_unit) {
+                r = unit_name_mangle_with_suffix(arg_unit, "as unit",
+                                                 arg_quiet ? 0 : UNIT_NAME_MANGLE_WARN,
+                                                 ".service", &service);
+                if (r < 0)
+                        return log_error_errno(r, "Failed to mangle unit name: %m");
+                printf ("unit name service is %s\n", service);
+        }
+        // r = bus_message_new_method_call(bus, &m, bus_systemd_mgr, "StartTransientUnit");
+        /* int bus_message_new_method_call( */
+        /*         sd_bus *bus, */
+        /*         sd_bus_message **m, */
+        /*         const BusLocator *locator, */
+        /*         const char *member) { */
+
+        /* assert(locator); */
+
+        /* const BusLocator* const bus_systemd_mgr = &(BusLocator){ */
+        /*         .destination = "org.freedesktop.systemd1", */
+        /*         .path = "/org/freedesktop/systemd1", */
+        /*         .interface = "org.freedesktop.systemd1.Manager" */
+        /* }; */
+
+        r = sd_bus_message_new_method_call(bus,
+                                           &m,
+                                           "org.freedesktop.systemd1",
+                                           "/org/freedesktop/systemd1",
+                                           "org.freedesktop.systemd1.Manager",
+                                           "StartTransientUnit");
+        if (r < 0)
+                return bus_log_create_error(r);
+
+        /* for tty? not sure */
+        /* r = sd_bus_message_set_allow_interactive_authorization(m, true); */
+        /* if (r < 0) */
+        /*         return bus_log_create_error(r); */
+
+        /* Name and mode */
+        r = sd_bus_message_append(m, "ss", service, "fail");
+        if (r < 0)
+                return bus_log_create_error(r);
+
+        /* Properties */
+        r = sd_bus_message_open_container(m, 'a', "(sv)");
+        if (r < 0)
+                return bus_log_create_error(r);
+
+        r = transient_service_set_properties(m, pty_path);
+        if (r < 0)
+                return r;
+
+        r = sd_bus_message_close_container(m);
+        if (r < 0)
+                return bus_log_create_error(r);
+
+        /* Auxiliary units */
+        r = sd_bus_message_append(m, "a(sa(sv))", 0);
+        if (r < 0)
+                return bus_log_create_error(r);
+
+        /* achu: tty stuff, ignore for now */
+        // polkit_agent_open_if_enabled(arg_transport, true);
+
+        r = sd_bus_call(bus, m, 0, &error, &reply);
+        if (r < 0)
+                return log_error_errno(r, "Failed to start transient service unit: %s", bus_error_message(&error, r));
+
+        if (!arg_quiet)
+                log_info("Running as unit: %s", service);
+
+        return 0;
+}
+
+
 typedef struct RunContext {
         sd_bus *bus;
         sd_event *event;
@@ -775,17 +859,11 @@ static int on_properties_changed(sd_bus_message *m, void *userdata, sd_bus_error
         return run_context_update(c, sd_bus_message_get_path(m));
 }
 
-static int start_transient_service(
+static int wait_transient_service(
                 sd_bus *bus,
                 int *retval) {
-
-        _cleanup_(sd_bus_message_unrefp) sd_bus_message *m = NULL, *reply = NULL;
-        _cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
-        _cleanup_free_ char *service = NULL, *pty_path = NULL;
+        _cleanup_free_ char *service = NULL;
         int r;
-
-        assert(bus);
-        assert(retval);
 
         if (arg_unit) {
                 r = unit_name_mangle_with_suffix(arg_unit, "as unit",
@@ -795,67 +873,6 @@ static int start_transient_service(
                         return log_error_errno(r, "Failed to mangle unit name: %m");
                 printf ("unit name service is %s\n", service);
         }
-        // r = bus_message_new_method_call(bus, &m, bus_systemd_mgr, "StartTransientUnit");
-        /* int bus_message_new_method_call( */
-        /*         sd_bus *bus, */
-        /*         sd_bus_message **m, */
-        /*         const BusLocator *locator, */
-        /*         const char *member) { */
-
-        /* assert(locator); */
-
-        /* const BusLocator* const bus_systemd_mgr = &(BusLocator){ */
-        /*         .destination = "org.freedesktop.systemd1", */
-        /*         .path = "/org/freedesktop/systemd1", */
-        /*         .interface = "org.freedesktop.systemd1.Manager" */
-        /* }; */
-
-        r = sd_bus_message_new_method_call(bus,
-                                           &m,
-                                           "org.freedesktop.systemd1",
-                                           "/org/freedesktop/systemd1",
-                                           "org.freedesktop.systemd1.Manager",
-                                           "StartTransientUnit");
-        if (r < 0)
-                return bus_log_create_error(r);
-
-        /* for tty? not sure */
-        /* r = sd_bus_message_set_allow_interactive_authorization(m, true); */
-        /* if (r < 0) */
-        /*         return bus_log_create_error(r); */
-
-        /* Name and mode */
-        r = sd_bus_message_append(m, "ss", service, "fail");
-        if (r < 0)
-                return bus_log_create_error(r);
-
-        /* Properties */
-        r = sd_bus_message_open_container(m, 'a', "(sv)");
-        if (r < 0)
-                return bus_log_create_error(r);
-
-        r = transient_service_set_properties(m, pty_path);
-        if (r < 0)
-                return r;
-
-        r = sd_bus_message_close_container(m);
-        if (r < 0)
-                return bus_log_create_error(r);
-
-        /* Auxiliary units */
-        r = sd_bus_message_append(m, "a(sa(sv))", 0);
-        if (r < 0)
-                return bus_log_create_error(r);
-
-        /* achu: tty stuff, ignore for now */
-        // polkit_agent_open_if_enabled(arg_transport, true);
-
-        r = sd_bus_call(bus, m, 0, &error, &reply);
-        if (r < 0)
-                return log_error_errno(r, "Failed to start transient service unit: %s", bus_error_message(&error, r));
-
-        if (!arg_quiet)
-                log_info("Running as unit: %s", service);
 
         printf ("wait path? %d %d\n", arg_wait, arg_stdio != ARG_STDIO_NONE);
         if (arg_wait || arg_stdio != ARG_STDIO_NONE) {
@@ -983,10 +1000,8 @@ static int start_transient_service(
                 else
                         *retval = EXIT_FAILURE;
         }
-
         return 0;
 }
-
 /* build/systemd-run --user --pipe --collect --property=CPUAccounting=1 --unit="test-$RANDOM" sleep 5 */
 
 static int run(int argc, char* argv[]) {
@@ -1095,7 +1110,11 @@ static int run(int argc, char* argv[]) {
         if (r < 0)
                 return bus_log_connect_error(r);
 
-        r = start_transient_service(bus, &retval);
+        r = start_transient_service(bus);
+        if (r < 0)
+                return r;
+
+        r = wait_transient_service(bus, &retval);
         if (r < 0)
                 return r;
 
