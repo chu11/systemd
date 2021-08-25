@@ -1052,6 +1052,8 @@ static int run(int argc, char* argv[]) {
                         exit (1);
                 }
         }
+        else
+                r = bus_connect_transport_systemd(arg_transport, arg_host, arg_user, &bus);
 
         if (r < 0)
                 return bus_log_connect_error(r);
