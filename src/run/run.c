@@ -793,7 +793,7 @@ static int start_transient_service(
                                                  ".service", &service);
                 if (r < 0)
                         return log_error_errno(r, "Failed to mangle unit name: %m");
-                printf ("unit name is %s\n", service);
+                printf ("unit name service is %s\n", service);
         }
         // r = bus_message_new_method_call(bus, &m, bus_systemd_mgr, "StartTransientUnit");
         /* int bus_message_new_method_call( */
@@ -819,9 +819,10 @@ static int start_transient_service(
         if (r < 0)
                 return bus_log_create_error(r);
 
-        r = sd_bus_message_set_allow_interactive_authorization(m, true);
-        if (r < 0)
-                return bus_log_create_error(r);
+        /* for tty? not sure */
+        /* r = sd_bus_message_set_allow_interactive_authorization(m, true); */
+        /* if (r < 0) */
+        /*         return bus_log_create_error(r); */
 
         /* Name and mode */
         r = sd_bus_message_append(m, "ss", service, "fail");
@@ -872,6 +873,7 @@ static int start_transient_service(
                         return log_oom();
                 printf ("unit_dbus_path_from_name = %s -> %s\n", service, path);
                 // /org/freedesktop/systemd1/unit/unitnamefoo_2eservice
+                // dash converts to _2d
 
                 // HOW DO I LIMIT THE MATCH?
                 // perhaps need to GetAll just like systemd did already and filter as needed.
