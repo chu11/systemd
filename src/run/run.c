@@ -55,8 +55,6 @@ static enum {
         ARG_STDIO_DIRECT,    /* Directly pass our stdin/stdout/stderr to the activated service, useful for usage in shell pipelines, requested by --pipe */
         ARG_STDIO_AUTO,      /* If --pipe and --pty are used together we use --pty when invoked on a TTY, and --pipe otherwise */
 } arg_stdio = ARG_STDIO_NONE;
-static char **arg_timer_property = NULL;
-static bool arg_with_timer = false;
 static bool arg_quiet = false;
 static bool arg_aggressive_gc = false;
 static char *arg_working_directory = NULL;
@@ -65,7 +63,6 @@ static char **arg_cmdline = NULL;
 
 STATIC_DESTRUCTOR_REGISTER(arg_environment, strv_freep);
 STATIC_DESTRUCTOR_REGISTER(arg_property, strv_freep);
-STATIC_DESTRUCTOR_REGISTER(arg_timer_property, strv_freep);
 STATIC_DESTRUCTOR_REGISTER(arg_working_directory, freep);
 STATIC_DESTRUCTOR_REGISTER(arg_cmdline, strv_freep);
 
@@ -103,37 +100,11 @@ static int help(void) {
                "  -q --quiet                      Suppress information messages during runtime\n"
                "  -G --collect                    Unload unit after it ran, even when failed\n"
                "  -S --shell                      Invoke a $SHELL interactively\n\n"
-               "Timer options:\n"
-               "     --on-active=SECONDS          Run after SECONDS delay\n"
-               "     --on-boot=SECONDS            Run SECONDS after machine was booted up\n"
-               "     --on-startup=SECONDS         Run SECONDS after systemd activation\n"
-               "     --on-unit-active=SECONDS     Run SECONDS after the last activation\n"
-               "     --on-unit-inactive=SECONDS   Run SECONDS after the last deactivation\n"
-               "     --on-calendar=SPEC           Realtime timer\n"
-               "     --on-timezone-change         Run when the timezone changes\n"
-               "     --on-clock-change            Run when the realtime clock jumps\n"
-               "     --timer-property=NAME=VALUE  Set timer unit property\n"
                "\nSee the %s for details.\n",
                program_invocation_short_name,
                ansi_highlight(),
                ansi_normal(),
                link);
-
-        return 0;
-}
-
-static int add_timer_property(const char *name, const char *val) {
-        char *p;
-
-        assert(name);
-        assert(val);
-
-        p = strjoin(name, "=", val);
-        if (!p)
-                return log_oom();
-
-        if (strv_consume(&arg_timer_property, p) < 0)
-                return log_oom();
 
         return 0;
 }
@@ -149,15 +120,6 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_SERVICE_TYPE,
                 ARG_EXEC_USER,
                 ARG_EXEC_GROUP,
-                ARG_ON_ACTIVE,
-                ARG_ON_BOOT,
-                ARG_ON_STARTUP,
-                ARG_ON_UNIT_ACTIVE,
-                ARG_ON_UNIT_INACTIVE,
-                ARG_ON_CALENDAR,
-                ARG_ON_TIMEZONE_CHANGE,
-                ARG_ON_CLOCK_CHANGE,
-                ARG_TIMER_PROPERTY,
                 ARG_NO_BLOCK,
                 ARG_WAIT,
                 ARG_WORKING_DIRECTORY,
@@ -185,15 +147,6 @@ static int parse_argv(int argc, char *argv[]) {
                 { "pty",               no_argument,       NULL, 't'                   },
                 { "pipe",              no_argument,       NULL, 'P'                   },
                 { "quiet",             no_argument,       NULL, 'q'                   },
-                { "on-active",         required_argument, NULL, ARG_ON_ACTIVE         },
-                { "on-boot",           required_argument, NULL, ARG_ON_BOOT           },
-                { "on-startup",        required_argument, NULL, ARG_ON_STARTUP        },
-                { "on-unit-active",    required_argument, NULL, ARG_ON_UNIT_ACTIVE    },
-                { "on-unit-inactive",  required_argument, NULL, ARG_ON_UNIT_INACTIVE  },
-                { "on-calendar",       required_argument, NULL, ARG_ON_CALENDAR       },
-                { "on-timezone-change",no_argument,       NULL, ARG_ON_TIMEZONE_CHANGE},
-                { "on-clock-change",   no_argument,       NULL, ARG_ON_CLOCK_CHANGE   },
-                { "timer-property",    required_argument, NULL, ARG_TIMER_PROPERTY    },
                 { "no-block",          no_argument,       NULL, ARG_NO_BLOCK          },
                 { "collect",           no_argument,       NULL, 'G'                   },
                 { "working-directory", required_argument, NULL, ARG_WORKING_DIRECTORY },
@@ -202,7 +155,6 @@ static int parse_argv(int argc, char *argv[]) {
                 {},
         };
 
-        bool with_trigger = false;
         int r, c;
 
         assert(argc >= 0);
@@ -295,103 +247,6 @@ static int parse_argv(int argc, char *argv[]) {
                         arg_quiet = true;
                         break;
 
-                case ARG_ON_ACTIVE:
-                        r = add_timer_property("OnActiveSec", optarg);
-                        if (r < 0)
-                                return r;
-
-                        arg_with_timer = true;
-                        break;
-
-                case ARG_ON_BOOT:
-                        r = add_timer_property("OnBootSec", optarg);
-                        if (r < 0)
-                                return r;
-
-                        arg_with_timer = true;
-                        break;
-
-                case ARG_ON_STARTUP:
-                        r = add_timer_property("OnStartupSec", optarg);
-                        if (r < 0)
-                                return r;
-
-                        arg_with_timer = true;
-                        break;
-
-                case ARG_ON_UNIT_ACTIVE:
-                        r = add_timer_property("OnUnitActiveSec", optarg);
-                        if (r < 0)
-                                return r;
-
-                        arg_with_timer = true;
-                        break;
-
-                case ARG_ON_UNIT_INACTIVE:
-                        r = add_timer_property("OnUnitInactiveSec", optarg);
-                        if (r < 0)
-                                return r;
-
-                        arg_with_timer = true;
-                        break;
-
-                case ARG_ON_CALENDAR: {
-                        _cleanup_(calendar_spec_freep) CalendarSpec *cs = NULL;
-
-                        r = calendar_spec_from_string(optarg, &cs);
-                        if (r < 0)
-                                return log_error_errno(r, "Failed to parse calendar event specification: %m");
-
-                        /* Let's make sure the given calendar event is not in the past */
-                        r = calendar_spec_next_usec(cs, now(CLOCK_REALTIME), NULL);
-                        if (r == -ENOENT)
-                                /* The calendar event is in the past — let's warn about this, but install it
-                                 * anyway as is. The service manager will trigger the service right away.
-                                 * Moreover, the server side might have a different clock or timezone than we
-                                 * do, hence it should decide when or whether to run something. */
-                                log_warning("Specified calendar expression is in the past, proceeding anyway.");
-                        else if (r < 0)
-                                return log_error_errno(r, "Failed to calculate next time calendar expression elapses: %m");
-
-                        r = add_timer_property("OnCalendar", optarg);
-                        if (r < 0)
-                                return r;
-
-                        arg_with_timer = true;
-                        break;
-                }
-
-                case ARG_ON_TIMEZONE_CHANGE:
-                        r = add_timer_property("OnTimezoneChange", "yes");
-                        if (r < 0)
-                                return r;
-
-                        arg_with_timer = true;
-                        break;
-
-                case ARG_ON_CLOCK_CHANGE:
-                        r = add_timer_property("OnClockChange", "yes");
-                        if (r < 0)
-                                return r;
-
-                        arg_with_timer = true;
-                        break;
-
-                case ARG_TIMER_PROPERTY:
-
-                        if (strv_extend(&arg_timer_property, optarg) < 0)
-                                return log_oom();
-
-                        arg_with_timer = arg_with_timer ||
-                                STARTSWITH_SET(optarg,
-                                               "OnActiveSec=",
-                                               "OnBootSec=",
-                                               "OnStartupSec=",
-                                               "OnUnitActiveSec=",
-                                               "OnUnitInactiveSec=",
-                                               "OnCalendar=");
-                        break;
-
                 case ARG_NO_BLOCK:
                         arg_no_block = true;
                         break;
@@ -435,13 +290,6 @@ static int parse_argv(int argc, char *argv[]) {
                 default:
                         assert_not_reached();
                 }
-
-        with_trigger = arg_with_timer;
-
-        /* currently, only single trigger (path, socket, timer) unit can be created simultaneously */
-        if ((int) arg_with_timer > 1)
-                return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
-                                       "Only single trigger (path, socket, timer) unit can be created.");
 
         if (arg_shell) {
                 /* If --shell is imply --pty --pipe --same-dir --service-type=exec --wait --collect, unless otherwise
@@ -503,7 +351,7 @@ static int parse_argv(int argc, char *argv[]) {
 
                 strv_free_and_replace(arg_cmdline, l);
 
-        } else if (!arg_unit || !with_trigger)
+        } else if (!arg_unit)
                 return log_error_errno(SYNTHETIC_ERRNO(EINVAL), "Command line to execute required.");
 
         if (arg_user && arg_transport == BUS_TRANSPORT_REMOTE)
@@ -518,7 +366,7 @@ static int parse_argv(int argc, char *argv[]) {
                 return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
                                        "--remain-after-exit and --service-type= are not supported in --scope mode.");
 
-        if (arg_stdio != ARG_STDIO_NONE && (with_trigger || arg_scope))
+        if (arg_stdio != ARG_STDIO_NONE && arg_scope)
                 return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
                                        "--pty/--pipe is not compatible in timer or --scope mode.");
 
@@ -530,22 +378,10 @@ static int parse_argv(int argc, char *argv[]) {
                 return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
                                        "--pty/--pipe is not compatible with --no-block.");
 
-        if (arg_scope && with_trigger)
-                return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
-                                       "Path, socket or timer options are not supported in --scope mode.");
-
-        if (arg_timer_property && !arg_with_timer)
-                return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
-                                       "--timer-property= has no effect without any other timer options.");
-
         if (arg_wait) {
                 if (arg_no_block)
                         return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
                                                "--wait may not be combined with --no-block.");
-
-                if (with_trigger)
-                        return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
-                                               "--wait may not be combined with path, socket or timer operations.");
 
                 if (arg_scope)
                         return log_error_errno(SYNTHETIC_ERRNO(EINVAL),
@@ -1148,7 +984,8 @@ static int run(int argc, char* argv[]) {
 }
 
 #if 0
-int main(int argc, char *argv[]) {                                      \
+#define _DEFINE_MAIN_FUNCTION(intro, impl, ret)                         \
+        int main(int argc, char *argv[]) {                              \
                 int r;                                                  \
                 save_argc_argv(argc, argv);                             \
                 intro;                                                  \
@@ -1162,6 +999,17 @@ int main(int argc, char *argv[]) {                                      \
                 static_destruct();                                      \
                 return ret;                                             \
         }
+
+/* Negative return values from impl are mapped to EXIT_FAILURE, and
+ * everything else means success! */
+#define DEFINE_MAIN_FUNCTION(impl)                                      \
+        _DEFINE_MAIN_FUNCTION(,impl(argc, argv), r < 0 ? EXIT_FAILURE : EXIT_SUCCESS)
+
+/* Zero is mapped to EXIT_SUCCESS, negative values are mapped to EXIT_FAILURE,
+ * and positive values are propagated.
+ * Note: "true" means failure! */
+#define DEFINE_MAIN_FUNCTION_WITH_POSITIVE_FAILURE(impl)                \
+        _DEFINE_MAIN_FUNCTION(,impl(argc, argv), r < 0 ? EXIT_FAILURE : r)
 #endif
 
 DEFINE_MAIN_FUNCTION_WITH_POSITIVE_FAILURE(run);
