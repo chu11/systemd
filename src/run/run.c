@@ -608,7 +608,7 @@ static void run_context_check_done(RunContext *c) {
         assert(c);
 
         if (c->match) {
-                printf ("check active state = active_state -> %s\n", c->active_state);
+                //printf ("check active state = active_state -> %s\n", c->active_state);
                 done = STRPTR_IN_SET(c->active_state, "inactive", "failed");
         }
         else
@@ -703,7 +703,7 @@ static int run_context_update(RunContext *c, const char *path) {
                                 printf ("STRDUP FAILED\n");
                                 return -1;
                         }
-                        // printf ("new active state = %s\n", c->active_state);
+                        printf ("new active state = %s\n", c->active_state);
                 }
                 else if (!strcmp (member, "Result")) {
                         const char *s;
@@ -738,7 +738,7 @@ static int run_context_update(RunContext *c, const char *path) {
                                 printf ("STRDUP FAILED\n");
                                 return -1;
                         }
-                        //printf ("new result = %s\n", c->result);
+                        printf ("new result = %s\n", c->result);
                 }
                 else if (!strcmp (member, "ExecMainStatus")) {
                         uint32_t tmp;
@@ -769,7 +769,7 @@ static int run_context_update(RunContext *c, const char *path) {
                                 return r;
 
                         c->exit_status = tmp;
-                        //printf ("exit status = %d\n", tmp);
+                        printf ("exit status = %d\n", tmp);
                 }
                 else {
                         r = sd_bus_message_skip(m, "v");
