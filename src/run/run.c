@@ -866,6 +866,7 @@ static int wait_transient_service(
                 sd_bus *bus,
                 int *retval) {
         _cleanup_free_ char *service = NULL;
+        _cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
         int r;
 
         if (arg_unit) {
@@ -899,6 +900,18 @@ static int wait_transient_service(
 
                 // HOW DO I LIMIT THE MATCH?
                 // perhaps need to GetAll just like systemd did already and filter as needed.
+
+
+                r = sd_bus_call_method(bus,
+                                       "org.freedesktop.systemd1",
+                                       "/org/freedesktop/systemd1",
+                                       "org.freedesktop.systemd1.Manager",
+                                       "Subscribe",
+                                       &error,
+                                       NULL,
+                                       NULL);
+                if (r < 0)
+                        return log_error_errno(r, "Failed to subscribe: %m");
 
                 r = sd_bus_match_signal_async(
                                 bus,
@@ -1130,11 +1143,11 @@ static int run(int argc, char* argv[]) {
                 // r = sd_bus_default_system (&bus_wait);
                 r = sd_bus_open_user (&bus_wait);
                 if (r < 0)
-                        return r;
+                        return log_error_errno(r, "sd_bus_open_user: %m");;
 
                 r = wait_transient_service(bus_wait, &retval);
                 if (r < 0)
-                        return r;
+                        return log_error_errno(r, "wait_transient_service: %m");;
         }
 
         return retval;
