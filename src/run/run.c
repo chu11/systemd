@@ -578,6 +578,7 @@ static int start_transient_service(
 
 typedef struct RunContext {
         sd_bus *bus;
+        sd_event *event;
         PTYForward *forward;
         sd_bus_slot *match;
 
@@ -595,6 +596,7 @@ static void run_context_free(RunContext *c) {
         c->forward = pty_forward_free(c->forward);
         c->match = sd_bus_slot_unref(c->match);
         c->bus = sd_bus_unref(c->bus);
+        c->event = sd_event_unref(c->event);
 
         free(c->active_state);
         free(c->result);
@@ -615,9 +617,12 @@ static void run_context_check_done(RunContext *c) {
         if (c->forward && done) /* If the service is gone, it's time to drain the output */
                 done = pty_forward_drain(c->forward);
 
-        /* if (done) */
-        /*         sd_event_exit(c->event, EXIT_SUCCESS); */
+#if 0
+        if (done)
+                sd_event_exit(c->event, EXIT_SUCCESS);
+#else
         c->done = done;
+#endif
 }
 
 static int run_context_update(RunContext *c, const char *path) {
@@ -879,6 +884,12 @@ static int wait_transient_service(
 
                 c.bus = sd_bus_ref(bus);
 
+#if 0
+                r = sd_event_default(&c.event);
+                if (r < 0)
+                        return log_error_errno(r, "Failed to get event loop: %m");
+#endif
+
                 path = unit_dbus_path_from_name(service);
                 if (!path)
                         return log_oom();
@@ -901,16 +912,30 @@ static int wait_transient_service(
                         return log_error_errno(r, "Failed to request properties changed signal match: %m");
 
 #if 0
+                printf ("EVENT LOOP\n");
+                r = sd_bus_attach_event(bus, c.event, SD_EVENT_PRIORITY_NORMAL);
+                if (r < 0)
+                        return log_error_errno(r, "Failed to attach bus to event loop: %m");
+
+                r = run_context_update(&c, path);
+                if (r < 0)
+                        return r;
+
+                r = sd_event_loop(c.event);
+                if (r < 0)
+                        return log_error_errno(r, "Failed to run event loop: %m");
+#endif
+#if 0
                 r = run_context_update(&c, path);
                 if (r < 0)
                         return r;
 
                 while (!c.done) {
                         time_t t_start = time(NULL);
-                        printf ("start wait time = %ld\n", t_start);
+                        printf ("wait - start wait time = %ld\n", t_start);
                         if (sd_bus_wait (bus, UINT64_MAX) < 0)
                                 fprintf (stderr, "sd_bus_wait ...");
-                        printf ("time passed = %ld\n", time (NULL) - t_start);
+                        printf ("wait - time passed = %ld\n", time (NULL) - t_start);
                         while ( sd_bus_process(bus, NULL) ) {  }
                 }
 #endif
@@ -1037,17 +1062,18 @@ static int run(int argc, char* argv[]) {
                 //printf ("%d %d %d\n", arg_wait, arg_stdio != ARG_STDIO_NONE, (arg_user && arg_transport != BUS_TRANSPORT_LOCAL));
                 // r = bus_connect_transport(arg_transport, arg_host, arg_user, &bus);
 
-                r = sd_bus_default_user(&bus);
+                // r = sd_bus_default_user(&bus);
+                r = sd_bus_open_user (&bus);
                 if (r < 0) {
                         fprintf (stderr, "sd_bus_default_user\n");
                         exit (1);
                 }
 
-                r = sd_bus_set_exit_on_disconnect(bus, true);
-                if (r < 0) {
-                        fprintf (stderr, "sd_bus_set_exit_on_disconnect\n");
-                        exit (1);
-                }
+                /* r = sd_bus_set_exit_on_disconnect(bus, true); */
+                /* if (r < 0) { */
+                /*         fprintf (stderr, "sd_bus_set_exit_on_disconnect\n"); */
+                /*         exit (1); */
+                /* } */
         }
         else {
                 // r = bus_connect_transport_systemd(arg_transport, arg_host, arg_user, &bus);
@@ -1096,25 +1122,15 @@ static int run(int argc, char* argv[]) {
         if (r < 0)
                 return r;
 
-        if (arg_wait) {
-                if (arg_stdio != ARG_STDIO_NONE) {
-                        r = sd_bus_default_user(&bus_wait);
-                        if (r < 0) {
-                                fprintf (stderr, "sd_bus_default_user\n");
-                                exit (1);
-                        }
+        sd_bus_flush_close_unref (bus);
+        bus = NULL;
 
-                        r = sd_bus_set_exit_on_disconnect(bus_wait, true);
-                        if (r < 0) {
-                                fprintf (stderr, "sd_bus_set_exit_on_disconnect\n");
-                                exit (1);
-                        }
-                }
-                else {
-                        r = sd_bus_default_user (&bus_wait);
-                        if (r < 0)
-                                return r;
-                }
+        if (arg_wait) {
+                //r = sd_bus_default_user (&bus_wait);
+                // r = sd_bus_default_system (&bus_wait);
+                r = sd_bus_open_user (&bus_wait);
+                if (r < 0)
+                        return r;
 
                 r = wait_transient_service(bus_wait, &retval);
                 if (r < 0)
