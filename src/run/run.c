@@ -54,7 +54,6 @@ static enum {
         ARG_STDIO_DIRECT,    /* Directly pass our stdin/stdout/stderr to the activated service, useful for usage in shell pipelines, requested by --pipe */
         ARG_STDIO_AUTO,      /* If --pipe and --pty are used together we use --pty when invoked on a TTY, and --pipe otherwise */
 } arg_stdio = ARG_STDIO_NONE;
-static bool arg_quiet = false;
 static bool arg_aggressive_gc = false;
 static char *arg_working_directory = NULL;
 static char **arg_cmdline = NULL;
@@ -95,7 +94,6 @@ static int help(void) {
                "  -t --pty                        Run service on pseudo TTY as STDIN/STDOUT/\n"
                "                                  STDERR\n"
                "  -P --pipe                       Pass STDIN/STDOUT/STDERR directly to service\n"
-               "  -q --quiet                      Suppress information messages during runtime\n"
                "  -G --collect                    Unload unit after it ran, even when failed\n"
                "\nSee the %s for details.\n",
                program_invocation_short_name,
@@ -140,7 +138,6 @@ static int parse_argv(int argc, char *argv[]) {
                 { "tty",               no_argument,       NULL, 't'                   }, /* deprecated alias */
                 { "pty",               no_argument,       NULL, 't'                   },
                 { "pipe",              no_argument,       NULL, 'P'                   },
-                { "quiet",             no_argument,       NULL, 'q'                   },
                 { "no-block",          no_argument,       NULL, ARG_NO_BLOCK          },
                 { "collect",           no_argument,       NULL, 'G'                   },
                 { "working-directory", required_argument, NULL, ARG_WORKING_DIRECTORY },
@@ -225,10 +222,6 @@ static int parse_argv(int argc, char *argv[]) {
                                 arg_stdio = ARG_STDIO_AUTO;
                         else
                                 arg_stdio = ARG_STDIO_DIRECT;
-                        break;
-
-                case 'q':
-                        arg_quiet = true;
                         break;
 
                 case ARG_NO_BLOCK:
@@ -504,7 +497,7 @@ static int start_transient_service(
 
         if (arg_unit) {
                 r = unit_name_mangle_with_suffix(arg_unit, "as unit",
-                                                 arg_quiet ? 0 : UNIT_NAME_MANGLE_WARN,
+                                                 UNIT_NAME_MANGLE_WARN,
                                                  ".service", &service);
                 if (r < 0)
                         return log_error_errno(r, "Failed to mangle unit name: %m");
@@ -569,8 +562,7 @@ static int start_transient_service(
         if (r < 0)
                 return log_error_errno(r, "Failed to start transient service unit: %s", bus_error_message(&error, r));
 
-        if (!arg_quiet)
-                log_info("Running as unit: %s", service);
+        log_info("Running as unit: %s", service);
 
         return 0;
 }
@@ -865,7 +857,7 @@ static int wait_transient_service(
 
         if (arg_unit) {
                 r = unit_name_mangle_with_suffix(arg_unit, "as unit",
-                                                 arg_quiet ? 0 : UNIT_NAME_MANGLE_WARN,
+                                                 UNIT_NAME_MANGLE_WARN,
                                                  ".service", &service);
                 if (r < 0)
                         return log_error_errno(r, "Failed to mangle unit name: %m");
@@ -998,7 +990,7 @@ static int wait_transient_service(
                 if (c.forward) {
                         char last_char = 0;
                         r = pty_forward_get_last_char(c.forward, &last_char);
-                        if (r >= 0 && !arg_quiet && last_char != '\n')
+                        if (r >= 0 && last_char != '\n')
                                 fputc('\n', stdout);
                 }
 
