@@ -580,7 +580,6 @@ typedef struct RunContext {
         sd_bus *bus;
         sd_event *event;
         PTYForward *forward;
-        sd_bus_slot *match;
 
         /* Current state of the unit */
         char *active_state;
@@ -594,7 +593,6 @@ static void run_context_free(RunContext *c) {
         assert(c);
 
         c->forward = pty_forward_free(c->forward);
-        c->match = sd_bus_slot_unref(c->match);
         c->bus = sd_bus_unref(c->bus);
         c->event = sd_event_unref(c->event);
 
@@ -607,12 +605,8 @@ static void run_context_check_done(RunContext *c) {
 
         assert(c);
 
-        if (c->match) {
-                //printf ("check active state = active_state -> %s\n", c->active_state);
-                done = STRPTR_IN_SET(c->active_state, "inactive", "failed");
-        }
-        else
-                done = true;
+        //printf ("check active state = active_state -> %s\n", c->active_state);
+        done = STRPTR_IN_SET(c->active_state, "inactive", "failed");
 
         if (c->forward && done) /* If the service is gone, it's time to drain the output */
                 done = pty_forward_drain(c->forward);
@@ -915,7 +909,7 @@ static int wait_transient_service(
 
                 r = sd_bus_match_signal_async(
                                 bus,
-                                &c.match,
+                                NULL,
                                 "org.freedesktop.systemd1",
                                 path,
                                 "org.freedesktop.DBus.Properties",
