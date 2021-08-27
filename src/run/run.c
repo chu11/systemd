@@ -1061,8 +1061,8 @@ static int run(int argc, char* argv[]) {
                 //printf ("%d %d %d\n", arg_wait, arg_stdio != ARG_STDIO_NONE, (arg_user && arg_transport != BUS_TRANSPORT_LOCAL));
                 // r = bus_connect_transport(arg_transport, arg_host, arg_user, &bus);
 
-                // r = sd_bus_default_user(&bus);
-                r = sd_bus_open_user (&bus);
+                r = sd_bus_default_user(&bus);
+                // r = sd_bus_open_user (&bus);
                 if (r < 0) {
                         fprintf (stderr, "sd_bus_default_user\n");
                         exit (1);
@@ -1125,9 +1125,9 @@ static int run(int argc, char* argv[]) {
         bus = NULL;
 
         if (arg_wait) {
-                //r = sd_bus_default_user (&bus_wait);
+                r = sd_bus_default_user (&bus_wait);
                 // r = sd_bus_default_system (&bus_wait);
-                r = sd_bus_open_user (&bus_wait);
+                // r = sd_bus_open_user (&bus_wait);
                 if (r < 0)
                         return log_error_errno(r, "sd_bus_open_user: %m");;
 
