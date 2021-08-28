@@ -49,7 +49,7 @@ static int help(void) {
                "  -d --same-dir                   Inherit working directory from caller\n"
                "  -G --collect                    Unload unit after it ran, even when failed\n");
 
-        return 0;
+        exit (1);
 }
 
 static int parse_argv(int argc, char *argv[]) {
@@ -427,12 +427,12 @@ static int start_transient_service(
         r = sd_bus_call(bus, m, 0, &error, &reply);
         if (r < 0) {
                 fprintf (stderr,
-                         "Failed to start transient service unit: %s",
+                         "Failed to start transient service unit: %s\n",
                          error.message ? error.message : strerror (errno));
                 goto cleanup;
         }
 
-        fprintf (stderr, "Running as unit: %s", service);
+        fprintf (stderr, "Running as unit: %s\n", service);
 
         r = 0;
 cleanup:
@@ -479,7 +479,7 @@ cleanup:
         free (arg_working_directory);
         if (arg_cmdline) {
                 char **tmp = arg_cmdline;
-                while (tmp) {
+                while (*tmp) {
                         free (*tmp);
                         tmp++;
                 }
