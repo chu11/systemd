@@ -79,6 +79,71 @@ static int parse_argv(int argc, char *argv[]) {
         return 0;
 }
 
+static int get_properties_inactive (sd_bus *bus, const char *path)
+{
+        sd_bus_error error = SD_BUS_ERROR_NULL;
+        uint32_t tmp;
+        uint64_t t;
+        int r;
+
+        r = sd_bus_get_property_trivial (bus,
+                                         "org.freedesktop.systemd1",
+                                         path,
+                                         "org.freedesktop.systemd1.Service",
+                                         "ExecMainStatus",
+                                         &error,
+                                         'i',
+                                         &tmp);
+        if (r < 0) {
+                fprintf (stderr, "sd_bus_get_property_trivial: %s\n", error.message);
+                goto cleanup;
+        }
+        printf ("exit status = %d\n", tmp);
+
+        r = sd_bus_get_property_trivial (bus,
+                                         "org.freedesktop.systemd1",
+                                         path,
+                                         "org.freedesktop.systemd1.Service",
+                                         "ExecMainStartTimestamp",
+                                         &error,
+                                         't',
+                                         &t);
+        if (r < 0) {
+                fprintf (stderr, "sd_bus_get_property_trivial: %s\n", error.message);
+                goto cleanup;
+        }
+        printf ("start time = %lu\n", t);
+
+        r = sd_bus_get_property_trivial (bus,
+                                         "org.freedesktop.systemd1",
+                                         path,
+                                         "org.freedesktop.systemd1.Service",
+                                         "ExecMainExitTimestamp",
+                                         &error,
+                                         't',
+                                         &t);
+        if (r < 0) {
+                fprintf (stderr, "sd_bus_get_property_trivial: %s\n", error.message);
+                goto cleanup;
+        }
+        printf ("Exit time = %lu\n", t);
+
+        r = 0;
+cleanup:
+        sd_bus_error_free (&error);
+        return r;
+}
+
+static int get_properties_done (sd_bus *bus,
+                                const char *active_state,
+                                const char *path)
+{
+        if (!strcmp (active_state, "inactive")
+            || !strcmp (active_state, "failed"))
+                return get_properties_inactive (bus, path);
+        return 0;
+}
+
 struct wait_data {
         sd_bus *bus;
 
@@ -104,7 +169,7 @@ static int get_properties_changed (struct wait_data *wd, const char *path)
                                &m,
                                "s", "");
         if (r < 0) {
-                perror ("sd_bus_call_method");
+                fprintf (stderr, "sd_bus_call_method: %s\n", error.message);
                 goto cleanup;
         }
 
@@ -356,6 +421,7 @@ static int on_properties_changed(sd_bus_message *m, void *userdata, sd_bus_error
         struct wait_data *wd = userdata;
         const char *path = sd_bus_message_get_path(m);
 
+        printf ("properties changed on path %s\n", path);
         return get_properties_changed (wd, path);
 }
 
@@ -418,6 +484,13 @@ static int waitunit(int argc, char* argv[]) {
             && !strcmp (load_state, "not-found")) {
                 printf ("unit %s not running\n", arg_unit);
                 goto cleanup;
+        }
+
+        if (!strcmp (active_state, "inactive")
+            || !strcmp (active_state, "failed")) {
+                printf ("unit %s is already done\n", arg_unit);
+                get_properties_done (bus, active_state, service_path);
+                goto done;
         }
 
         wd.bus = sd_bus_ref(bus);
@@ -501,6 +574,7 @@ static int waitunit(int argc, char* argv[]) {
                         while ( sd_bus_process(bus, NULL) ) {  }
                 }
         }
+done:
         r = 0;
 cleanup:
         wd.bus = sd_bus_unref(wd.bus);
