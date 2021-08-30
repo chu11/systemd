@@ -493,6 +493,33 @@ static int waitunit(int argc, char* argv[]) {
                 goto done;
         }
 
+        if (!strcmp (active_state, "active")) {
+                /* chance unit has exited but is active b/c of remain-after-exit / RemainAfterExit
+                 *
+                 * check exit timestamp to see if it's still going
+                 */
+                uint64_t t;
+                r = sd_bus_get_property_trivial (bus,
+                                                 "org.freedesktop.systemd1",
+                                                 service_path,
+                                                 "org.freedesktop.systemd1.Service",
+                                                 "ExecMainExitTimestamp",
+                                                 &error,
+                                                 't',
+                                                 &t);
+                if (r < 0) {
+                        fprintf (stderr, "sd_bus_get_property_trivial: %s\n", error.message);
+                        goto cleanup;
+                }
+
+                if (t != 0) {
+                        fprintf (stderr, "unit is completed\n");
+                        goto done;
+                }
+
+                /* else active and still running, fall through to polling loop */
+        }
+
         wd.bus = sd_bus_ref(bus);
 
         r = sd_bus_call_method(bus,
