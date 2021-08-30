@@ -319,6 +319,8 @@ static int waitunit(int argc, char* argv[]) {
         sd_bus_error error = SD_BUS_ERROR_NULL;
         struct wait_data wd = {0};
         int r;
+        char *active_state = NULL;
+        char *load_state = NULL;
 
         r = parse_argv(argc, argv);
         if (r < 0)
@@ -337,6 +339,39 @@ static int waitunit(int argc, char* argv[]) {
                 goto cleanup;
         }
         printf ("unit name service is %s\n", service_path);
+
+        /* first make sure unit exists */
+        r = sd_bus_get_property_string (bus,
+                                        "org.freedesktop.systemd1",
+                                        service_path,
+                                        "org.freedesktop.systemd1.Unit",
+                                        "ActiveState",
+                                        &error,
+                                        &active_state);
+        if (r < 0) {
+                fprintf (stderr, "sd_bus_get_property_string: %s\n", error.message);
+                goto cleanup;
+        }
+        printf ("initial active state = %s\n", active_state);
+
+        r = sd_bus_get_property_string (bus,
+                                        "org.freedesktop.systemd1",
+                                        service_path,
+                                        "org.freedesktop.systemd1.Unit",
+                                        "LoadState",
+                                        &error,
+                                        &load_state);
+        if (r < 0) {
+                fprintf (stderr, "sd_bus_get_property_string: %s\n", error.message);
+                goto cleanup;
+        }
+        printf ("initial load state = %s\n", load_state);
+
+        if (!strcmp (active_state, "inactive")
+            && !strcmp (load_state, "not-found")) {
+                printf ("unit %s not running\n", arg_unit);
+                goto cleanup;
+        }
 
         wd.bus = sd_bus_ref(bus);
 
@@ -427,6 +462,8 @@ cleanup:
         sd_bus_flush_close_unref (bus);
         sd_bus_error_free (&error);
         free (service_path);
+        free (active_state);
+        free (load_state);
         return r;
 }
 
