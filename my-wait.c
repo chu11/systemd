@@ -85,6 +85,7 @@ struct wait_data {
         char *active_state;
         char *result;
         uint32_t exit_status;
+        uint64_t exit_timestamp;
         bool done;
 };
 
@@ -268,6 +269,51 @@ static int get_properties_changed (struct wait_data *wd, const char *path)
                                 printf ("exit status = %d\n", tmp);
                         }
                 }
+                else if (!strcmp (member, "ExecMainExitTimestamp")) {
+                        uint64_t tmp;
+                        char type;
+
+                        r = sd_bus_message_peek_type(m, NULL, &contents);
+                        if (r < 0) {
+                                perror ("peek type\n");
+                                goto cleanup;
+                        }
+
+                        r = sd_bus_message_enter_container(m, SD_BUS_TYPE_VARIANT, contents);
+                        if (r < 0) {
+                                perror ("sd_bus_message_enter_container");
+                                goto cleanup;
+                        }
+
+                        /* must call again now that we've called enter container */
+                        r = sd_bus_message_peek_type(m, &type, NULL);
+                        if (r < 0) {
+                                perror ("peek type\n");
+                                goto cleanup;
+                        }
+
+                        if (type != SD_BUS_TYPE_UINT64) {
+                                fprintf (stderr, "invalid type\n");
+                                goto cleanup;
+                        }
+
+                        r = sd_bus_message_read_basic(m, type, &tmp);
+                        if (r < 0) {
+                                perror ("sd_bus_message_read_basic");
+                                goto cleanup;
+                        }
+
+                        r = sd_bus_message_exit_container(m);
+                        if (r < 0) {
+                                perror ("sd_bus_message_exit_container");
+                                goto cleanup;
+                        }
+
+                        if (wd->exit_timestamp != tmp) {
+                                wd->exit_timestamp = tmp;
+                                printf ("exit timestamp= %lu\n", tmp);
+                        }
+                }
                 else {
                         r = sd_bus_message_skip(m, "v");
                         if (r < 0) {
@@ -295,7 +341,8 @@ static int get_properties_changed (struct wait_data *wd, const char *path)
 
 
         if (!strcmp (wd->active_state, "inactive")
-            || !strcmp (wd->active_state, "failed"))
+            || !strcmp (wd->active_state, "failed")
+            || wd->exit_timestamp != 0)
                 wd->done = true;
 
         r = 0;
