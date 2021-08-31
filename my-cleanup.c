@@ -152,7 +152,7 @@ static int cleanupunit(int argc, char* argv[]) {
                 }
                 printf ("unit name service name is %s\n", service_name);
 
-                /* XXX sd_bus_call_method_async */
+                /* XXX sd_bus_call_method_async? */
 
                 /* apparently "name" here is name.service, no escaping, i have no idea why */
 
@@ -170,15 +170,65 @@ static int cleanupunit(int argc, char* argv[]) {
                         goto cleanup;
                 }
 
-                r = sd_bus_message_read(reply, "o", &response);
-                if (r < 0)
-                {
-                        perror ("sd_bus_message_read");
-                        goto cleanup_active;
-                }
+                /* response unnecessary? */
+                /* r = sd_bus_message_read(reply, "o", &response); */
+                /* if (r < 0) */
+                /* { */
+                /*         perror ("sd_bus_message_read"); */
+                /*         goto cleanup_active; */
+                /* } */
 
                 fprintf (stderr, "stopped unit %s\n", arg_unit);
         cleanup_active:
+                sd_bus_message_unref (reply);
+                free (service_name);
+        }
+        /* achu: generally speaking i think can only be failed if it is not active?
+         * Perhaps there are some weird corner cases I don't yet know of.
+         */
+        else if (!strcmp (active_state, "failed")
+                 || !strcmp (active_state, "inactive")) {
+                sd_bus_message *reply = NULL;
+                char *service_name = NULL;
+                const char* response;
+
+                /* assume user input a single word, so just add .service */
+                if (asprintf (&service_name,
+                              "%s.service",
+                              arg_unit) < 0) {
+                        perror ("asprintf");
+                        goto cleanup;
+                }
+                printf ("unit name service name is %s\n", service_name);
+
+                /* XXX sd_bus_call_method_async? */
+
+                /* apparently "name" here is name.service, no escaping, i have no idea why */
+
+                r = sd_bus_call_method (bus,
+                                        "org.freedesktop.systemd1",
+                                        "/org/freedesktop/systemd1",
+                                        "org.freedesktop.systemd1.Manager",
+                                        "ResetFailedUnit",
+                                        &error,
+                                        &reply,
+                                        "s",
+                                        service_name);
+                if (r < 0) {
+                        fprintf (stderr, "sd_bus_call_method: %s\n", error.message);
+                        goto cleanup;
+                }
+
+                /* achu: this always return < 0, is there no response? */
+                /* r = sd_bus_message_read(reply, "o", &response); */
+                /* if (r < 0) */
+                /* { */
+                /*         fprintf (stderr, "sd_bus_message_read: %s\n", response); */
+                /*         goto cleanup_failed; */
+                /* } */
+
+                fprintf (stderr, "reset failed unit %s\n", arg_unit);
+        cleanup_failed:
                 sd_bus_message_unref (reply);
                 free (service_name);
         }
