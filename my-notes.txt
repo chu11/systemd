@@ -1,0 +1,116 @@
+gcc my-run.c -o my-run -lsystemd
+gcc my-wait.c -o my-wait -lsystemd
+gcc my-cleanup.c -o my-cleanup -lsystemd
+
+./my-run --unit=test$RANDOM --remain-after-exit /bin/sh -c "/bin/sleep 60; /bin/true"
+
+./my-run --unit=test$RANDOM --remain-after-exit /bin/sh -c "/bin/sleep 60; /bin/false"
+
+./my-wait --unit=<input unit name from above>
+
+./my-cleanup --unit=<input unit name from above>
+
+
+example running a job that ends in success
+
+
+$ ./my-run --unit=test$RANDOM --remain-after-exit /bin/sh -c "/bin/sleep 60; /bin/true"
+unit name service is test4941.service
+Running as unit: test4941.service
+
+(most of the below is debug notes, really all that's important is result = success and state = active at the end b/c we called --remain-after-exit)
+$ ./my-wait --unit=test4941
+unit name service is /org/freedesktop/systemd1/unit/test4941_2eservice
+initial active state = active
+initial load state = loaded
+usec = 0 18446744073709551615
+fd = 3, events = 0, timeout = 0
+usec = 1849239848630 18446744073709551615
+fd = 3, events = 1, timeout = 1849239849
+start wait time = 1630383907
+time passed = 0
+revents = 1, n = 1
+usec = 18446744073709551615 18446744073709551615
+fd = 3, events = 1, timeout = 2147483647
+start wait time = 1630383907
+time passed = 50
+revents = 1, n = 1
+properties changed on path /org/freedesktop/systemd1/unit/test4941_2eservice
+new result = success
+exit timestamp= 1630383957995005
+new active state = active
+properties changed on path /org/freedesktop/systemd1/unit/test4941_2eservice
+
+(call my-wait again, we catch if its already done)
+$ ./my-wait --unit=test4941
+unit name service is /org/freedesktop/systemd1/unit/test4941_2eservice
+initial active state = active
+initial load state = loaded
+unit is completed
+
+$ systemctl list-units --user | grep test
+  test4941.service                                                                         loaded active exited    running a job test
+
+$ ./my-cleanup --unit=test4941
+unit name service path is /org/freedesktop/systemd1/unit/test4941_2eservice
+initial active state = active
+unit name service name is test4941.service
+stopped unit test4941
+
+$ systemctl list-units --user | grep test
+$
+
+
+
+example running a job that ends in failure
+
+$ ./my-run --unit=test$RANDOM --remain-after-exit /bin/sh -c "/bin/sleep 60; /bin/false"
+unit name service is test8670.service
+Running as unit: test8670.service
+
+(lots of debugging, note failed state at the end and exit status is 1)
+$ ./my-wait --unit=test8670
+unit name service is /org/freedesktop/systemd1/unit/test8670_2eservice
+initial active state = active
+initial load state = loaded
+usec = 0 18446744073709551615
+fd = 3, events = 0, timeout = 0
+usec = 1849559580932 18446744073709551615
+fd = 3, events = 1, timeout = 1849559581
+start wait time = 1630384226
+time passed = 0
+revents = 1, n = 1
+usec = 18446744073709551615 18446744073709551615
+fd = 3, events = 1, timeout = 2147483647
+start wait time = 1630384226
+time passed = 49
+revents = 1, n = 1
+properties changed on path /org/freedesktop/systemd1/unit/test8670_2eservice
+new result = exit-code
+exit timestamp= 1630384275547615
+exit status = 1
+new active state = failed
+properties changed on path /org/freedesktop/systemd1/unit/test8670_2eservice
+
+
+(call my-wait again, we catch if its already done)
+$ ./my-wait --unit=test8670
+unit name service is /org/freedesktop/systemd1/unit/test8670_2eservice
+initial active state = failed
+initial load state = loaded
+unit test8670 is already done
+exit status = 1
+start time = 1630384215538223
+Exit time = 1630384275547615
+
+$ systemctl list-units --user | grep test
+● test8670.service                                                                         loaded failed failed    running a job test
+
+$ ./my-cleanup --unit=test8670
+unit name service path is /org/freedesktop/systemd1/unit/test8670_2eservice
+initial active state = failed
+unit name service name is test8670.service
+reset failed unit test8670
+
+$ systemctl list-units --user | grep test
+$
