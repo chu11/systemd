@@ -26,64 +26,66 @@ static int get_unit_list_recursive(
         _cleanup_free_ UnitInfo *unit_infos = NULL;
         _cleanup_(message_set_freep) Set *replies = NULL;
         sd_bus_message *reply;
-        int c, r;
+        int c;
 
         assert(bus);
-        assert(ret_replies);
+        //assert(ret_replies);
         assert(ret_unit_infos);
         assert(ret_machines);
 
-        replies = set_new(NULL);
-        if (!replies)
-                return log_oom();
+        /* replies = set_new(NULL); */
+        /* if (!replies) */
+        /*         return log_oom(); */
 
+        printf("get_units_list\n");
         c = get_unit_list(bus, NULL, patterns, &unit_infos, 0, &reply);
         if (c < 0)
                 return c;
 
-        r = set_put(replies, reply);
-        if (r < 0) {
-                sd_bus_message_unref(reply);
-                return log_oom();
-        }
+        /* r = set_put(replies, reply); */
+        /* if (r < 0) { */
+        /*         sd_bus_message_unref(reply); */
+        /*         return log_oom(); */
+        /* } */
 
-        if (arg_recursive) {
-                _cleanup_strv_free_ char **machines = NULL;
-                char **i;
+        /* printf ("is recursive on? %d\n", arg_recursive); */
+        /* if (arg_recursive) { */
+        /*         _cleanup_strv_free_ char **machines = NULL; */
+        /*         char **i; */
 
-                r = sd_get_machine_names(&machines);
-                if (r < 0)
-                        return log_error_errno(r, "Failed to get machine names: %m");
+        /*         r = sd_get_machine_names(&machines); */
+        /*         if (r < 0) */
+        /*                 return log_error_errno(r, "Failed to get machine names: %m"); */
 
-                STRV_FOREACH(i, machines) {
-                        _cleanup_(sd_bus_flush_close_unrefp) sd_bus *container = NULL;
-                        int k;
+        /*         STRV_FOREACH(i, machines) { */
+        /*                 _cleanup_(sd_bus_flush_close_unrefp) sd_bus *container = NULL; */
+        /*                 int k; */
 
-                        r = sd_bus_open_system_machine(&container, *i);
-                        if (r < 0) {
-                                log_warning_errno(r, "Failed to connect to container %s, ignoring: %m", *i);
-                                continue;
-                        }
+        /*                 r = sd_bus_open_system_machine(&container, *i); */
+        /*                 if (r < 0) { */
+        /*                         log_warning_errno(r, "Failed to connect to container %s, ignoring: %m", *i); */
+        /*                         continue; */
+        /*                 } */
 
-                        k = get_unit_list(container, *i, patterns, &unit_infos, c, &reply);
-                        if (k < 0)
-                                return k;
+        /*                 k = get_unit_list(container, *i, patterns, &unit_infos, c, &reply); */
+        /*                 if (k < 0) */
+        /*                         return k; */
 
-                        c = k;
+        /*                 c = k; */
 
-                        r = set_put(replies, reply);
-                        if (r < 0) {
-                                sd_bus_message_unref(reply);
-                                return log_oom();
-                        }
-                }
+        /*                 r = set_put(replies, reply); */
+        /*                 if (r < 0) { */
+        /*                         sd_bus_message_unref(reply); */
+        /*                         return log_oom(); */
+        /*                 } */
+        /*         } */
 
-                *ret_machines = TAKE_PTR(machines);
-        } else
-                *ret_machines = NULL;
+        /*         *ret_machines = TAKE_PTR(machines); */
+        /* } else */
+        *ret_machines = NULL;
 
         *ret_unit_infos = TAKE_PTR(unit_infos);
-        *ret_replies = TAKE_PTR(replies);
+        //*ret_replies = TAKE_PTR(replies);
 
         return c;
 }
@@ -177,35 +179,35 @@ static int output_units_list(const UnitInfo *unit_infos, unsigned c) {
         if (r < 0)
                 return r;
 
-        if (arg_legend != 0) {
-                const char *on, *off;
-                size_t records = table_get_rows(table) - 1;
+        /* if (arg_legend != 0) { */
+        /*         const char *on, *off; */
+        /*         size_t records = table_get_rows(table) - 1; */
 
-                if (records > 0) {
-                        puts("\n"
-                             "LOAD   = Reflects whether the unit definition was properly loaded.\n"
-                             "ACTIVE = The high-level unit activation state, i.e. generalization of SUB.\n"
-                             "SUB    = The low-level unit activation state, values depend on unit type.");
-                        if (job_count > 0)
-                                puts("JOB    = Pending job for the unit.\n");
-                        on = ansi_highlight();
-                        off = ansi_normal();
-                } else {
-                        on = ansi_highlight_red();
-                        off = ansi_normal();
-                }
+        /*         if (records > 0) { */
+        /*                 puts("\n" */
+        /*                      "LOAD   = Reflects whether the unit definition was properly loaded.\n" */
+        /*                      "ACTIVE = The high-level unit activation state, i.e. generalization of SUB.\n" */
+        /*                      "SUB    = The low-level unit activation state, values depend on unit type."); */
+        /*                 if (job_count > 0) */
+        /*                         puts("JOB    = Pending job for the unit.\n"); */
+        /*                 on = ansi_highlight(); */
+        /*                 off = ansi_normal(); */
+        /*         } else { */
+        /*                 on = ansi_highlight_red(); */
+        /*                 off = ansi_normal(); */
+        /*         } */
 
-                if (arg_all || strv_contains(arg_states, "inactive"))
-                        printf("%s%zu loaded units listed.%s\n"
-                               "To show all installed unit files use 'systemctl list-unit-files'.\n",
-                               on, records, off);
-                else if (!arg_states)
-                        printf("%s%zu loaded units listed.%s Pass --all to see loaded but inactive units, too.\n"
-                               "To show all installed unit files use 'systemctl list-unit-files'.\n",
-                               on, records, off);
-                else
-                        printf("%zu loaded units listed.\n", records);
-        }
+        /*         if (arg_all || strv_contains(arg_states, "inactive")) */
+        /*                 printf("%s%zu loaded units listed.%s\n" */
+        /*                        "To show all installed unit files use 'systemctl list-unit-files'.\n", */
+        /*                        on, records, off); */
+        /*         else if (!arg_states) */
+        /*                 printf("%s%zu loaded units listed.%s Pass --all to see loaded but inactive units, too.\n" */
+        /*                        "To show all installed unit files use 'systemctl list-unit-files'.\n", */
+        /*                        on, records, off); */
+        /*         else */
+        /*                 printf("%zu loaded units listed.\n", records); */
+        /* } */
 
         return 0;
 }
@@ -223,24 +225,28 @@ int list_units(int argc, char *argv[], void *userdata) {
 
         (void) pager_open(arg_pager_flags);
 
-        if (arg_with_dependencies) {
-                _cleanup_strv_free_ char **names = NULL;
+        /* if (arg_with_dependencies) { */
+        /*         _cleanup_strv_free_ char **names = NULL; */
 
-                r = append_unit_dependencies(bus, strv_skip(argv, 1), &names);
-                if (r < 0)
-                        return r;
+        /*         r = append_unit_dependencies(bus, strv_skip(argv, 1), &names); */
+        /*         if (r < 0) */
+        /*                 return r; */
 
-                r = get_unit_list_recursive(bus, names, &unit_infos, &replies, &machines);
-                if (r < 0)
-                        return r;
-        } else {
-                r = get_unit_list_recursive(bus, strv_skip(argv, 1), &unit_infos, &replies, &machines);
-                if (r < 0)
-                        return r;
-        }
+        /*         r = get_unit_list_recursive(bus, names, &unit_infos, &replies, &machines); */
+        /*         if (r < 0) */
+        /*                 return r; */
+        /* } else { */
+        //printf ("no dependencies\n");
+        //r = get_unit_list_recursive(bus, strv_skip(argv, 1), &unit_infos, &replies, &machines);
+        r = get_unit_list_recursive(bus, strv_skip(argv, 1), &unit_infos, NULL, &machines);
+        if (r < 0)
+                return r;
+//}
 
         typesafe_qsort(unit_infos, r, unit_info_compare);
-        return output_units_list(unit_infos, r);
+        r = output_units_list(unit_infos, r);
+        printf ("done\n");
+        return r;
 }
 
 static int get_triggered_units(
@@ -493,7 +499,7 @@ int list_sockets(int argc, char *argv[], void *userdata) {
 
         output_sockets_list(socket_infos, cs);
 
- cleanup:
+cleanup:
         assert(cs == 0 || socket_infos);
         for (struct socket_info *s = socket_infos; s < socket_infos + cs; s++) {
                 free(s->type);
@@ -755,7 +761,7 @@ int list_timers(int argc, char *argv[], void *userdata) {
 
         output_timers_list(timer_infos, c);
 
- cleanup:
+cleanup:
         for (struct timer_info *t = timer_infos; t < timer_infos + c; t++)
                 strv_free(t->triggered);
 

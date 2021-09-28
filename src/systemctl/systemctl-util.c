@@ -94,16 +94,16 @@ int translate_bus_error_to_exit_status(int r, const sd_bus_error *error) {
                 return r;
 
         if (sd_bus_error_has_names(error, SD_BUS_ERROR_ACCESS_DENIED,
-                                          BUS_ERROR_ONLY_BY_DEPENDENCY,
-                                          BUS_ERROR_NO_ISOLATION,
-                                          BUS_ERROR_TRANSACTION_IS_DESTRUCTIVE))
+                                   BUS_ERROR_ONLY_BY_DEPENDENCY,
+                                   BUS_ERROR_NO_ISOLATION,
+                                   BUS_ERROR_TRANSACTION_IS_DESTRUCTIVE))
                 return EXIT_NOPERMISSION;
 
         if (sd_bus_error_has_name(error, BUS_ERROR_NO_SUCH_UNIT))
                 return EXIT_NOTINSTALLED;
 
         if (sd_bus_error_has_names(error, BUS_ERROR_JOB_TYPE_NOT_APPLICABLE,
-                                          SD_BUS_ERROR_NOT_SUPPORTED))
+                                   SD_BUS_ERROR_NOT_SUPPORTED))
                 return EXIT_NOTIMPLEMENTED;
 
         if (sd_bus_error_has_name(error, BUS_ERROR_LOAD_FAILED))
@@ -169,17 +169,20 @@ int get_unit_list(
         if (r < 0)
                 return bus_log_create_error(r);
 
+        printf ("arg_states = %s\n", arg_states ? arg_states[0] : "nillll");
         r = sd_bus_message_append_strv(m, arg_states);
         if (r < 0)
                 return bus_log_create_error(r);
 
+        printf ("patterns0 = %s\n", patterns ? patterns[0] : "nill");
         r = sd_bus_message_append_strv(m, patterns);
         if (r < 0)
                 return bus_log_create_error(r);
 
         r = sd_bus_call(bus, m, 0, &error, &reply);
         if (r < 0 && (sd_bus_error_has_names(&error, SD_BUS_ERROR_UNKNOWN_METHOD,
-                                                     SD_BUS_ERROR_ACCESS_DENIED))) {
+                                             SD_BUS_ERROR_ACCESS_DENIED))) {
+                printf ("falled back to ListUnitsFiltered\n");
                 /* Fallback to legacy ListUnitsFiltered method */
                 fallback = true;
                 log_debug_errno(r, "Failed to list units: %s Falling back to ListUnitsFiltered method.", bus_error_message(&error, r));
@@ -204,9 +207,37 @@ int get_unit_list(
                 return bus_log_parse_error(r);
 
         for (;;) {
+#if 0
+                typedef struct UnitInfo {
+                 const char *machine;
+                 const char *id;
+                 const char *description;
+                 const char *load_state;
+                 const char *active_state;
+                 const char *sub_state;
+                 const char *following;
+                 const char *unit_path;
+                 uint32_t job_id;
+                 const char *job_type;
+                 const char *job_path;
+                 } UnitInfo;
+#endif
                 UnitInfo u;
 
-                r = bus_parse_unit_info(reply, &u);
+                // r = bus_parse_unit_info(reply, &u);
+                r = sd_bus_message_read(
+                                reply,
+                                "(ssssssouso)",
+                                &u.id,
+                                &u.description,
+                                &u.load_state,
+                                &u.active_state,
+                                &u.sub_state,
+                                &u.following,
+                                &u.unit_path,
+                                &u.job_id,
+                                &u.job_type,
+                                &u.job_path);
                 if (r < 0)
                         return bus_log_parse_error(r);
                 if (r == 0)
@@ -533,7 +564,7 @@ int unit_find_paths(
                 }
         }
 
- finish:
+finish:
         if (isempty(path)) {
                 *ret_fragment_path = NULL;
                 r = 0;
@@ -854,7 +885,7 @@ bool show_preset_for_state(UnitFileState state) {
 
 UnitFileFlags unit_file_flags_from_args(void) {
         return (arg_runtime ? UNIT_FILE_RUNTIME : 0) |
-               (arg_force   ? UNIT_FILE_FORCE   : 0);
+                (arg_force   ? UNIT_FILE_FORCE   : 0);
 }
 
 int mangle_names(const char *operation, char **original_names, char ***ret_mangled_names) {
