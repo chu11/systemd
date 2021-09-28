@@ -226,6 +226,8 @@ int get_unit_list(
 
                 u.machine = machine;
 
+                printf ("got id %s\n", u.id);
+
                 if (!GREEDY_REALLOC(*unit_infos, c+1))
                         return log_oom();
 

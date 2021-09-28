@@ -36,103 +36,102 @@ static int get_unit_list_recursive(
                 return c;
 
         *ret_machines = NULL;
-
         *ret_unit_infos = TAKE_PTR(unit_infos);
 
         return c;
 }
 
-static int output_units_list(const UnitInfo *unit_infos, unsigned c) {
-        _cleanup_(table_unrefp) Table *table = NULL;
-        unsigned job_count = 0;
-        int r;
+/* static int output_units_list(const UnitInfo *unit_infos, unsigned c) { */
+/*         _cleanup_(table_unrefp) Table *table = NULL; */
+/*         unsigned job_count = 0; */
+/*         int r; */
 
-        table = table_new("", "unit", "load", "active", "sub", "job", "description");
-        if (!table)
-                return log_oom();
+/*         table = table_new("", "unit", "load", "active", "sub", "job", "description"); */
+/*         if (!table) */
+/*                 return log_oom(); */
 
-        table_set_header(table, arg_legend != 0);
-        if (arg_plain) {
-                /* Hide the 'glyph' column when --plain is requested */
-                r = table_hide_column_from_display(table, 0);
-                if (r < 0)
-                        return log_error_errno(r, "Failed to hide column: %m");
-        }
-        if (arg_full)
-                table_set_width(table, 0);
+/*         table_set_header(table, arg_legend != 0); */
+/*         if (arg_plain) { */
+/*                 /\* Hide the 'glyph' column when --plain is requested *\/ */
+/*                 r = table_hide_column_from_display(table, 0); */
+/*                 if (r < 0) */
+/*                         return log_error_errno(r, "Failed to hide column: %m"); */
+/*         } */
+/*         if (arg_full) */
+/*                 table_set_width(table, 0); */
 
-        (void) table_set_empty_string(table, "-");
+/*         (void) table_set_empty_string(table, "-"); */
 
-        for (const UnitInfo *u = unit_infos; unit_infos && (size_t) (u - unit_infos) < c; u++) {
-                _cleanup_free_ char *j = NULL;
-                const char *on_underline = "", *on_loaded = "", *on_active = "";
-                const char *on_circle = "", *id;
-                bool circle = false, underline = false;
+/*         for (const UnitInfo *u = unit_infos; unit_infos && (size_t) (u - unit_infos) < c; u++) { */
+/*                 _cleanup_free_ char *j = NULL; */
+/*                 const char *on_underline = "", *on_loaded = "", *on_active = ""; */
+/*                 const char *on_circle = "", *id; */
+/*                 bool circle = false, underline = false; */
 
-                if (u + 1 < unit_infos + c &&
-                    !streq(unit_type_suffix(u->id), unit_type_suffix((u + 1)->id))) {
-                        on_underline = ansi_underline();
-                        underline = true;
-                }
+/*                 if (u + 1 < unit_infos + c && */
+/*                     !streq(unit_type_suffix(u->id), unit_type_suffix((u + 1)->id))) { */
+/*                         on_underline = ansi_underline(); */
+/*                         underline = true; */
+/*                 } */
 
-                if (STR_IN_SET(u->load_state, "error", "not-found", "bad-setting", "masked") && !arg_plain) {
-                        on_circle = underline ? ansi_highlight_yellow_underline() : ansi_highlight_yellow();
-                        circle = true;
-                        on_loaded = underline ? ansi_highlight_red_underline() : ansi_highlight_red();
-                } else if (streq(u->active_state, "failed") && !arg_plain) {
-                        on_circle = underline ? ansi_highlight_red_underline() : ansi_highlight_red();
-                        circle = true;
-                        on_active = underline ? ansi_highlight_red_underline() : ansi_highlight_red();
-                } else {
-                        on_circle = on_underline;
-                        on_active = on_underline;
-                        on_loaded = on_underline;
-                }
+/*                 if (STR_IN_SET(u->load_state, "error", "not-found", "bad-setting", "masked") && !arg_plain) { */
+/*                         on_circle = underline ? ansi_highlight_yellow_underline() : ansi_highlight_yellow(); */
+/*                         circle = true; */
+/*                         on_loaded = underline ? ansi_highlight_red_underline() : ansi_highlight_red(); */
+/*                 } else if (streq(u->active_state, "failed") && !arg_plain) { */
+/*                         on_circle = underline ? ansi_highlight_red_underline() : ansi_highlight_red(); */
+/*                         circle = true; */
+/*                         on_active = underline ? ansi_highlight_red_underline() : ansi_highlight_red(); */
+/*                 } else { */
+/*                         on_circle = on_underline; */
+/*                         on_active = on_underline; */
+/*                         on_loaded = on_underline; */
+/*                 } */
 
-                if (u->machine) {
-                        j = strjoin(u->machine, ":", u->id);
-                        if (!j)
-                                return log_oom();
+/*                 if (u->machine) { */
+/*                         j = strjoin(u->machine, ":", u->id); */
+/*                         if (!j) */
+/*                                 return log_oom(); */
 
-                        id = j;
-                } else
-                        id = u->id;
+/*                         id = j; */
+/*                 } else */
+/*                         id = u->id; */
 
-                r = table_add_many(table,
-                                   TABLE_STRING, circle ? special_glyph(SPECIAL_GLYPH_BLACK_CIRCLE) : " ",
-                                   TABLE_SET_BOTH_COLORS, on_circle,
-                                   TABLE_STRING, id,
-                                   TABLE_SET_BOTH_COLORS, on_active,
-                                   TABLE_STRING, u->load_state,
-                                   TABLE_SET_BOTH_COLORS, on_loaded,
-                                   TABLE_STRING, u->active_state,
-                                   TABLE_SET_BOTH_COLORS, on_active,
-                                   TABLE_STRING, u->sub_state,
-                                   TABLE_SET_BOTH_COLORS, on_active,
-                                   TABLE_STRING, u->job_id ? u->job_type: "",
-                                   TABLE_SET_BOTH_COLORS, on_underline,
-                                   TABLE_STRING, u->description,
-                                   TABLE_SET_BOTH_COLORS, on_underline);
-                if (r < 0)
-                        return table_log_add_error(r);
+/*                 r = table_add_many(table, */
+/*                                    TABLE_STRING, circle ? special_glyph(SPECIAL_GLYPH_BLACK_CIRCLE) : " ", */
+/*                                    TABLE_SET_BOTH_COLORS, on_circle, */
+/*                                    TABLE_STRING, id, */
+/*                                    TABLE_SET_BOTH_COLORS, on_active, */
+/*                                    TABLE_STRING, u->load_state, */
+/*                                    TABLE_SET_BOTH_COLORS, on_loaded, */
+/*                                    TABLE_STRING, u->active_state, */
+/*                                    TABLE_SET_BOTH_COLORS, on_active, */
+/*                                    TABLE_STRING, u->sub_state, */
+/*                                    TABLE_SET_BOTH_COLORS, on_active, */
+/*                                    TABLE_STRING, u->job_id ? u->job_type: "", */
+/*                                    TABLE_SET_BOTH_COLORS, on_underline, */
+/*                                    TABLE_STRING, u->description, */
+/*                                    TABLE_SET_BOTH_COLORS, on_underline); */
+/*                 if (r < 0) */
+/*                         return table_log_add_error(r); */
 
-                if (u->job_id != 0)
-                        job_count++;
-        }
+/*                 if (u->job_id != 0) */
+/*                         job_count++; */
+/*         } */
 
-        if (job_count == 0) {
-                /* There's no data in the JOB column, so let's hide it */
-                r = table_hide_column_from_display(table, 5);
-                if (r < 0)
-                        return log_error_errno(r, "Failed to hide column: %m");
-        }
+/*         if (job_count == 0) { */
+/*                 /\* There's no data in the JOB column, so let's hide it *\/ */
+/*                 r = table_hide_column_from_display(table, 5); */
+/*                 if (r < 0) */
+/*                         return log_error_errno(r, "Failed to hide column: %m"); */
+/*         } */
 
-        r = output_table(table);
-        if (r < 0)
-                return r;
+/*         r = output_table(table); */
+/*         if (r < 0) */
+/*                 return r; */
 
-        return 0;
-}
+/*         return 0; */
+/* } */
 
 int list_units(int argc, char *argv[], void *userdata) {
         _cleanup_free_ UnitInfo *unit_infos = NULL;
@@ -150,8 +149,8 @@ int list_units(int argc, char *argv[], void *userdata) {
         if (r < 0)
                 return r;
 
-        typesafe_qsort(unit_infos, r, unit_info_compare);
-        r = output_units_list(unit_infos, r);
+        //typesafe_qsort(unit_infos, r, unit_info_compare);
+        //r = output_units_list(unit_infos, r);
         printf ("done\n");
         return r;
 }
