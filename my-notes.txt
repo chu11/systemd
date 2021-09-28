@@ -2,6 +2,7 @@ gcc my-run.c -o my-run -lsystemd
 gcc my-wait.c -o my-wait -lsystemd
 gcc my-cleanup.c -o my-cleanup -lsystemd
 gcc my-kill.c -o my-kill -lsystemd
+gcc my-list.c -o my-list -lsystemd
 
 ./my-run --unit=test$RANDOM --remain-after-exit /bin/sh -c "/bin/sleep 60; /bin/true"
 
