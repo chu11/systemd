@@ -20,72 +20,24 @@ static int get_unit_list_recursive(
                 sd_bus *bus,
                 char **patterns,
                 UnitInfo **ret_unit_infos,
-                Set **ret_replies,
                 char ***ret_machines) {
 
         _cleanup_free_ UnitInfo *unit_infos = NULL;
-        _cleanup_(message_set_freep) Set *replies = NULL;
         sd_bus_message *reply;
         int c;
 
         assert(bus);
-        //assert(ret_replies);
         assert(ret_unit_infos);
         assert(ret_machines);
-
-        /* replies = set_new(NULL); */
-        /* if (!replies) */
-        /*         return log_oom(); */
 
         printf("get_units_list\n");
         c = get_unit_list(bus, NULL, patterns, &unit_infos, 0, &reply);
         if (c < 0)
                 return c;
 
-        /* r = set_put(replies, reply); */
-        /* if (r < 0) { */
-        /*         sd_bus_message_unref(reply); */
-        /*         return log_oom(); */
-        /* } */
-
-        /* printf ("is recursive on? %d\n", arg_recursive); */
-        /* if (arg_recursive) { */
-        /*         _cleanup_strv_free_ char **machines = NULL; */
-        /*         char **i; */
-
-        /*         r = sd_get_machine_names(&machines); */
-        /*         if (r < 0) */
-        /*                 return log_error_errno(r, "Failed to get machine names: %m"); */
-
-        /*         STRV_FOREACH(i, machines) { */
-        /*                 _cleanup_(sd_bus_flush_close_unrefp) sd_bus *container = NULL; */
-        /*                 int k; */
-
-        /*                 r = sd_bus_open_system_machine(&container, *i); */
-        /*                 if (r < 0) { */
-        /*                         log_warning_errno(r, "Failed to connect to container %s, ignoring: %m", *i); */
-        /*                         continue; */
-        /*                 } */
-
-        /*                 k = get_unit_list(container, *i, patterns, &unit_infos, c, &reply); */
-        /*                 if (k < 0) */
-        /*                         return k; */
-
-        /*                 c = k; */
-
-        /*                 r = set_put(replies, reply); */
-        /*                 if (r < 0) { */
-        /*                         sd_bus_message_unref(reply); */
-        /*                         return log_oom(); */
-        /*                 } */
-        /*         } */
-
-        /*         *ret_machines = TAKE_PTR(machines); */
-        /* } else */
         *ret_machines = NULL;
 
         *ret_unit_infos = TAKE_PTR(unit_infos);
-        //*ret_replies = TAKE_PTR(replies);
 
         return c;
 }
@@ -179,42 +131,11 @@ static int output_units_list(const UnitInfo *unit_infos, unsigned c) {
         if (r < 0)
                 return r;
 
-        /* if (arg_legend != 0) { */
-        /*         const char *on, *off; */
-        /*         size_t records = table_get_rows(table) - 1; */
-
-        /*         if (records > 0) { */
-        /*                 puts("\n" */
-        /*                      "LOAD   = Reflects whether the unit definition was properly loaded.\n" */
-        /*                      "ACTIVE = The high-level unit activation state, i.e. generalization of SUB.\n" */
-        /*                      "SUB    = The low-level unit activation state, values depend on unit type."); */
-        /*                 if (job_count > 0) */
-        /*                         puts("JOB    = Pending job for the unit.\n"); */
-        /*                 on = ansi_highlight(); */
-        /*                 off = ansi_normal(); */
-        /*         } else { */
-        /*                 on = ansi_highlight_red(); */
-        /*                 off = ansi_normal(); */
-        /*         } */
-
-        /*         if (arg_all || strv_contains(arg_states, "inactive")) */
-        /*                 printf("%s%zu loaded units listed.%s\n" */
-        /*                        "To show all installed unit files use 'systemctl list-unit-files'.\n", */
-        /*                        on, records, off); */
-        /*         else if (!arg_states) */
-        /*                 printf("%s%zu loaded units listed.%s Pass --all to see loaded but inactive units, too.\n" */
-        /*                        "To show all installed unit files use 'systemctl list-unit-files'.\n", */
-        /*                        on, records, off); */
-        /*         else */
-        /*                 printf("%zu loaded units listed.\n", records); */
-        /* } */
-
         return 0;
 }
 
 int list_units(int argc, char *argv[], void *userdata) {
         _cleanup_free_ UnitInfo *unit_infos = NULL;
-        _cleanup_(message_set_freep) Set *replies = NULL;
         _cleanup_strv_free_ char **machines = NULL;
         sd_bus *bus;
         int r;
@@ -225,23 +146,9 @@ int list_units(int argc, char *argv[], void *userdata) {
 
         (void) pager_open(arg_pager_flags);
 
-        /* if (arg_with_dependencies) { */
-        /*         _cleanup_strv_free_ char **names = NULL; */
-
-        /*         r = append_unit_dependencies(bus, strv_skip(argv, 1), &names); */
-        /*         if (r < 0) */
-        /*                 return r; */
-
-        /*         r = get_unit_list_recursive(bus, names, &unit_infos, &replies, &machines); */
-        /*         if (r < 0) */
-        /*                 return r; */
-        /* } else { */
-        //printf ("no dependencies\n");
-        //r = get_unit_list_recursive(bus, strv_skip(argv, 1), &unit_infos, &replies, &machines);
-        r = get_unit_list_recursive(bus, strv_skip(argv, 1), &unit_infos, NULL, &machines);
+        r = get_unit_list_recursive(bus, strv_skip(argv, 1), &unit_infos, &machines);
         if (r < 0)
                 return r;
-//}
 
         typesafe_qsort(unit_infos, r, unit_info_compare);
         r = output_units_list(unit_infos, r);
@@ -452,7 +359,7 @@ int list_sockets(int argc, char *argv[], void *userdata) {
                 return r;
 
         if (argc == 1 || sockets_with_suffix) {
-                n = get_unit_list_recursive(bus, sockets_with_suffix, &unit_infos, &replies, &machines);
+                n = get_unit_list_recursive(bus, sockets_with_suffix, &unit_infos, &machines);
                 if (n < 0)
                         return n;
 
@@ -716,7 +623,7 @@ int list_timers(int argc, char *argv[], void *userdata) {
                 return r;
 
         if (argc == 1 || timers_with_suffix) {
-                n = get_unit_list_recursive(bus, timers_with_suffix, &unit_infos, &replies, &machines);
+                n = get_unit_list_recursive(bus, timers_with_suffix, &unit_infos, &machines);
                 if (n < 0)
                         return n;
 

@@ -159,7 +159,7 @@ int get_unit_list(
         _cleanup_(sd_bus_error_free) sd_bus_error error = SD_BUS_ERROR_NULL;
         _cleanup_(sd_bus_message_unrefp) sd_bus_message *reply = NULL;
         int r;
-        bool fallback = false;
+        //bool fallback = false;
 
         assert(bus);
         assert(unit_infos);
@@ -169,8 +169,8 @@ int get_unit_list(
         if (r < 0)
                 return bus_log_create_error(r);
 
-        printf ("arg_states = %s\n", arg_states ? arg_states[0] : "nillll");
-        r = sd_bus_message_append_strv(m, arg_states);
+        /* states */
+        r = sd_bus_message_append_strv(m, NULL);
         if (r < 0)
                 return bus_log_create_error(r);
 
@@ -180,25 +180,6 @@ int get_unit_list(
                 return bus_log_create_error(r);
 
         r = sd_bus_call(bus, m, 0, &error, &reply);
-        if (r < 0 && (sd_bus_error_has_names(&error, SD_BUS_ERROR_UNKNOWN_METHOD,
-                                             SD_BUS_ERROR_ACCESS_DENIED))) {
-                printf ("falled back to ListUnitsFiltered\n");
-                /* Fallback to legacy ListUnitsFiltered method */
-                fallback = true;
-                log_debug_errno(r, "Failed to list units: %s Falling back to ListUnitsFiltered method.", bus_error_message(&error, r));
-                m = sd_bus_message_unref(m);
-                sd_bus_error_free(&error);
-
-                r = bus_message_new_method_call(bus, &m, bus_systemd_mgr, "ListUnitsFiltered");
-                if (r < 0)
-                        return bus_log_create_error(r);
-
-                r = sd_bus_message_append_strv(m, arg_states);
-                if (r < 0)
-                        return bus_log_create_error(r);
-
-                r = sd_bus_call(bus, m, 0, &error, &reply);
-        }
         if (r < 0)
                 return log_error_errno(r, "Failed to list units: %s", bus_error_message(&error, r));
 
@@ -244,9 +225,6 @@ int get_unit_list(
                         break;
 
                 u.machine = machine;
-
-                if (!output_show_unit(&u, fallback ? patterns : NULL))
-                        continue;
 
                 if (!GREEDY_REALLOC(*unit_infos, c+1))
                         return log_oom();
@@ -805,36 +783,6 @@ const char* unit_type_suffix(const char *unit) {
                 return "";
 
         return dot + 1;
-}
-
-bool output_show_unit(const UnitInfo *u, char **patterns) {
-        assert(u);
-
-        if (!strv_fnmatch_or_empty(patterns, u->id, FNM_NOESCAPE))
-                return false;
-
-        if (arg_types && !strv_find(arg_types, unit_type_suffix(u->id)))
-                return false;
-
-        if (arg_all)
-                return true;
-
-        /* Note that '--all' is not purely a state filter, but also a filter that hides units that "follow"
-         * other units (which is used for device units that appear under different names). */
-        if (!isempty(u->following))
-                return false;
-
-        if (!strv_isempty(arg_states))
-                return true;
-
-        /* By default show all units except the ones in inactive state and with no pending job */
-        if (u->job_id > 0)
-                return true;
-
-        if (streq(u->active_state, "inactive"))
-                return false;
-
-        return true;
 }
 
 bool install_client_side(void) {
